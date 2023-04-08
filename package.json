@@ -1,0 +1,25 @@
+{
+  "name": "webrtc-with-tauri",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "dev:next": "next dev",
+    "export": "next export",
+    "build:next": "next build",
+    "build": "tauri build",
+    "build:debug": "tauri build --debug",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "13.2.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "socket.io-client": "^4.6.1",
+    "tauri-plugin-websocket-api": "https://github.com/tauri-apps/tauri-plugin-websocket"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.2.3"
+  }
+}
