@@ -14,9 +14,10 @@ class Peer {
         this.makingOffer = false;
         this.ignoreOffer = false;
         //https://stackoverflow.com/questions/73566978/how-to-define-polite-and-impolite-peer-in-perfect-negotiation-pattern
-        this.polite = polite;
+        this.polite = null;
 
-        this.name = 'teste';
+        this.name = '';
+        this.target = '';
         this.pc = new RTCPeerConnection(this.config);
         window.pc = this.pc;
         this.pc.ontrack = event => this._onTrack(event);
@@ -39,14 +40,12 @@ class Peer {
             // console.log('adicionado ice candidato')
             await this.pc.addIceCandidate(candidate);
             this._notify({
-                name: this.name,
-                target: '',
                 type: 'info',
                 data: 'ice candidato adicionado'
             });
         } catch (error) {
             if (!this.ignoreOffer) {
-                throw err;
+                throw error;
             }
         }
     }
@@ -62,15 +61,18 @@ class Peer {
             this.ignoreOffer = !this.polite && offerCollision;
             if (this.ignoreOffer) {
                 console.log('ignorou a oferta');
+                this._notify({
+                    type: 'negotiation',
+                    data: this.pc.localDescription
+                });
                 return;
             } 
 
             await this.pc.setRemoteDescription(description);
             if (description.type === "offer") {
+                // se ta recebendo uma oferta, significa q deve retornar uma resposta, essa resposta é fornecida no codigo abaixo
                 await this.pc.setLocalDescription();
                 this._notify({
-                    name: this.name,
-                    target: '',
                     type: 'negotiation',
                     data: this.pc.localDescription
                 });
@@ -107,8 +109,6 @@ class Peer {
     //         await this.pc.setLocalDescription();
     //         console.log('definindo descricao local')
     //          this._notify({
-    //             name: this.name,
-    //             target: '',
     //             type: 'negotiation',
     //             data: this.pc.localDescription
     //         });
@@ -125,8 +125,6 @@ class Peer {
         })
         .then(offer => {
             this._notify({
-                name: this.name,
-                target: '',
                 type: 'info',
                 data: {
                     info: 'criada oferta',
@@ -136,21 +134,18 @@ class Peer {
             return this.pc.setLocalDescription(offer);
         })
         .then(() => this._notify({
-            name: this.name,
-            target: '',
             type: 'negotiation',
             data: this.pc.localDescription
         }))
         .catch(error => this._notify({
-            name: this.name,
-            target: '',
             type: 'error',
             data: `Failed to create session description: ${error.toString()}`
         }));
     }
 
     _notify(data) {
-        this.observers.forEach(obs => obs(data));
+        const content = Object.assign({name: this.name, target: this.target}, data);
+        this.observers.forEach(obs => obs(content));
     }
 
     async _onNegotiationNeeded() {
@@ -159,15 +154,11 @@ class Peer {
             this.makingOffer = true;
             await this.pc.setLocalDescription();
             this._notify({
-                name: this.name,
-                target: '',
                 type: 'negotiation',
                 data: this.pc.localDescription
             });
         } catch (error) {
             this._notify({
-                name: this.name,
-                target: '',
                 type: 'error',
                 data: `Failed to create session description: ${error.toString()}`
             });
@@ -178,10 +169,8 @@ class Peer {
 
     _onIceCandidate({candidate}) {
         if(candidate != null) {
-            console.log('new ice candidate');
+            // console.log('new ice candidate');
             this._notify({
-                name: this.name,
-                target: '',
                 type: 'icecandidate',
                 data: candidate
             });
@@ -192,20 +181,16 @@ class Peer {
 
     _onTrack({track, streams}) {
         this._notify({
-            name: this.name,
-            target: '',
             type: 'track',
             data: {track, streams}
         });
     }
 
     _onIceconnectionStateChange(event) {
-        if(this.pc.iceConnectionState) {
+        if(this.pc.iceConnectionState === "failed") {
             this.pc.restartIce();
         }
         this._notify({
-            name: this.name,
-            target: '',
             type: 'iceconnectionstatechange',
             data: this.pc.iceConnectionState
         });
@@ -213,8 +198,6 @@ class Peer {
 
     _onConnectionStateChange(event) {
         this._notify({
-            name: this.name,
-            target: '',
             type: 'connectionstatechange',
             data: this.pc.connectionState
         });
