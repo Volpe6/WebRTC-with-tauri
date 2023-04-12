@@ -1,5 +1,4 @@
 import Head from 'next/head'
-import styles from '@/styles/Home.module.css'
 import { useEffect, useRef, useState } from 'react'
 
 import { socket } from '../socket';
@@ -19,7 +18,6 @@ export default function Home() {
   const [targetName, setTargetName] = useState('');
   
   const connections = useRef([]);
-  const refusedIce = useRef([]);
 
   useEffect(() => {
     function findConnection(name) {
@@ -58,6 +56,19 @@ export default function Home() {
       console.log('setando icecandidate');
       conn.addIceCandidate(content.data);
     }
+
+    function onHangup(content) {
+      const conn = findConnection(content.name);
+      if(!conn) {
+        console.log('recebeu hangup nao possui uma conexão rtc iniciada');
+        return;
+      }
+      
+      conn.pc.close();
+      connections.current = connections.current.filter(conn => conn.target != content.name);
+      console.log('connections', connections.current);
+      console.log('desligado');
+    }
     
     // function onIceCandidateRefused(content) {
     //   console.log(`onIceCandidateRefused ${content.name}: refuse icecandidate`, content.detail)
@@ -87,6 +98,7 @@ export default function Home() {
     //o rtcpeer nao ta iniciado do outro lado
     // socket.on('ice-candidate-refused', onIceCandidateRefused);
     socket.on('subscribed', onSubscribed);
+    socket.on('hangup', onHangup);
 
     return () => {
       socket.off('connect', onConnect);
@@ -94,6 +106,8 @@ export default function Home() {
       socket.off('negotiation', onNegotiation);
       socket.off('subscribed', onSubscribed);
       socket.off('ice-candidate', onIceCandidate);
+      socket.on('hangup', onHangup);
+
       // socket.off('ice-candidate-refused', onIceCandidateRefused);
     };
   }, [peerConnection]);
@@ -122,6 +136,22 @@ export default function Home() {
     audioTrack.enabled = !audioTrack.enabled;
   }
 
+  const hangup = () => {
+    connections.current.forEach(conn => {
+      socket.emit('hangup', {
+        name: userName,
+        target: conn.target
+      });
+      conn.pc.close();
+      localStream.getTracks().forEach(track =>{
+        track.stop();
+        localStream.removeTrack(track);
+      });
+      localVideo.current.srcObject = null;
+      localVideo.current.srcObject = localStream;
+    });
+  }
+
   const createConnection = async () => {
     const stream = await getMedia();
     console.log('chamando createConnection varias vezes');
@@ -133,17 +163,11 @@ export default function Home() {
       peer.target = targetName;
       peer.attachObserver(async (content) => {
         switch(content.type) {
-          case 'resendice':
-            // if(refusedIce.current.length>0) {
-            //   console.log('reenviadno ice');
-            //   refusedIce.current.forEach(ice => {
-            //     console.log('ice', ice);
-            //     socket.emit('ice-candidate', ice);
-            //   });
-            //   refusedIce.current = [];
-            // } else {
-            //   console.log('sem reenvio');
-            // }
+          case 'connectionstatechange':
+            console.log(content.data);
+            if (content.data === 'failed' || content.data === 'disconnected' || content.data === 'closed') {
+              hangup();
+            }
             break;
           case 'negotiation':
             console.log(content)
@@ -207,10 +231,6 @@ export default function Home() {
     // createConnection();
   }
 
-  const restart = () => {
-    handlePeerConnection(localStream)
-  }
-
   return (
     <>
       <Head>
@@ -219,7 +239,31 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className={styles.main}>
+      <main className='flex flex-row'>
+        <div className='flex flex-col justify-start h-full w-[50%] bg-red-500 space-y-10 p-10'>
+          <div className='flex flex-row'>
+            <input type="text" value={userName} placeholder="username" onChange={handleUserName} />
+            <button className='border border-fuchsia-700 bg-fuchsia-700' onClick={subscribe}>subscribe</button>
+          </div>
+          <div className='flex flex-col justify-center justify-items-center space-y-5'>
+            <h4>Create connection</h4>
+            <input type="text" value={targetName} placeholder="targetname" onChange={handleTargetName} />
+            <button className='border border-fuchsia-700 bg-fuchsia-700' onClick={call}>call</button>
+            <button className='border border-fuchsia-700 bg-fuchsia-700' onClick={hangup}>desligar</button>
+          </div>
+        </div>
+        <div className='relative w-full'>
+          <ul>
+            {connections.current.map((conn, i) => {
+              return (<li key={i}>
+                <Video peer={conn} />
+              </li>);
+            })}
+          </ul>
+          <video className='absolute top-[50%] left-[30%]' width={200} ref={localVideo} playsInline autoPlay muted></video>  
+        </div>
+      </main>
+      {/* <main className={styles.main}>
         <video ref={localVideo} playsInline autoPlay muted></video>
         <video ref={remoteVideo} playsInline autoPlay muted></video>
 
@@ -232,7 +276,7 @@ export default function Home() {
         </ul>
 
 
-        <div className="box">
+        < className="box">
           <ul>
             <li>create connection</li>
             <li>
@@ -253,9 +297,7 @@ export default function Home() {
             {/* <button ref={peerConnectionButton} onClick={handlePeerConnection}>init PeerConection</button>
             <button ref={createOfferButton} onClick={createOffer}>create offer</button>
             <button ref={hangupButton} onClick={handleHangup}>hangup</button> */}
-        </div>
-        
-      </main>
+      
     </>
   )
 }
