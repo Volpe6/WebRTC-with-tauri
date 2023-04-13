@@ -19,12 +19,13 @@ class Peer {
         this.name = '';
         this.target = '';
         this.pc = new RTCPeerConnection(this.config);
-        window.pc = this.pc;
         this.pc.ontrack = event => this._onTrack(event);
         this.pc.onicecandidate = event => this._onIceCandidate(event);
         this.pc.onconnectionstatechange = event => this._onConnectionStateChange(event);
         this.pc.oniceconnectionstatechange = event => this._onIceconnectionStateChange(event);
         this.pc.onnegotiationneeded = event => this._onNegotiationNeeded();
+        
+        window.peer = this;
     }
 
     attachObserver(obs) { this.observers.push(obs); }
@@ -32,7 +33,22 @@ class Peer {
     detachAllObserver() { this.observers=[]; }
 
     close() {
-        this.pc.close();
+        try {
+            this.pc.close();
+        } catch (error) {
+            this._notify({
+                type: 'error',
+                data: `Failed to close: ${error.toString()}`
+            });
+            return;
+        }
+        this.pc.oniceconnectionstatechange = null;
+        this.pc.onicegatheringstatechange = null;
+        this.pc.onsignalingstatechange = null;
+        this.pc.onicecandidate = null;
+        this.pc.ontrack = null;
+        this.pc.ondatachannel = null;
+        this._notify({type: 'close'});
     }
 
     async addIceCandidate(candidate) {

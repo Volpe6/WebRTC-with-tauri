@@ -18,6 +18,11 @@ function Video({peer}) {
                         videoRef.current.srcObject = streams[0];
                     };
                     break;
+                case 'close':
+                    if (videoRef.current.srcObject) {
+                        videoRef.current.srcObject = null;
+                    }
+                    break;
             }
         });
     }, []);

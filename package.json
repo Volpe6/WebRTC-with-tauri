@@ -16,6 +16,7 @@
     "next": "13.2.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-resizable": "^3.0.5",
     "socket.io-client": "^4.6.1",
     "tauri-plugin-websocket-api": "https://github.com/tauri-apps/tauri-plugin-websocket"
   },
