@@ -1,113 +1,23 @@
 import Head from 'next/head'
 import { useEffect, useRef, useState } from 'react'
+import useAuth from '../hook/useAuth';
 
 import { socket } from '../socket';
-import Peer from '@/utils/peer';
+import Peer from '@/models/peer';
+import User from '@/models/user';
 import Video from '../components/video';
+import Chat from '../components/chat';
 
 
 export default function Home() {
-  const startButton = useRef(null);
 
-  const localVideo = useRef(null);
-  const remoteVideo = useRef(null);
+  const { user, localStream, hangup, createConnection, currConnection: crrCon } = useAuth();
 
-  const [peerConnection, setPeerConnection] = useState(null);
-  const [localStream, setLocalStream] = useState(null);
-  const [userName, setUserName] = useState('');
+  if(!user) {
+    return;
+  }
+
   const [targetName, setTargetName] = useState('');
-
-  const [connections, setConnections] = useState([]);
-
-  useEffect(() => {
-    function findConnection(name) {
-      return connections.find(conn => conn.target == name);
-    }
-
-    function onConnect() {
-      console.log('conectado ao server de sinalização');
-      // alert('conectado ao server de sinalização');
-      socket.emit('hello');
-    }
-
-    function onDisconnect() {
-      alert('desconectado do server de sinalização');
-    }
-
-    function onSubscribed() {
-      alert('inscrito');
-    }
-
-    function onIceCandidate(content) {
-      const conn = findConnection(content.name);
-      if (!conn) {
-        console.log('recebeu uma icecandidato mas nao possui uma conexão rtc iniciada');
-        console.log('recusado', content);
-        socket.emit('ice-candidate-refused', {
-          name: content.target,
-          target: content.name,
-          data: content.data,
-          detail: 'nao possui uma conexão rtc iniciada'
-        });
-        return;
-      }
-
-      console.log('setando icecandidate');
-      conn.addIceCandidate(content.data);
-    }
-
-    function onHangup(content) {
-      const conn = findConnection(content.name);
-      if (!conn) {
-        console.log('recebeu hangup nao possui uma conexão rtc iniciada');
-        return;
-      }
-
-      conn.close();
-      setConnections(connections.filter(conn => conn.target != content.name))
-      console.log(`${content.name} desligado`);
-    }
-
-    function onNegotiation(content) {
-      console.log('recebendo negociação');
-      const conn = findConnection(content.name);
-      if (!conn) {
-        console.log('recebeu uma icecandidato mas nao possui uma conexão rtc iniciada');
-        return;
-      }
-      conn.polite = content.polite;
-      console.log(`processando negociação de: ${content.name}`);
-      conn.treatNegotiation(content);
-    }
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('negotiation', onNegotiation);
-    socket.on('ice-candidate', onIceCandidate);
-    //o rtcpeer nao ta iniciado do outro lado
-    // socket.on('ice-candidate-refused', onIceCandidateRefused);
-    socket.on('subscribed', onSubscribed);
-    socket.on('hangup', onHangup);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('negotiation', onNegotiation);
-      socket.off('subscribed', onSubscribed);
-      socket.off('ice-candidate', onIceCandidate);
-      socket.on('hangup', onHangup);
-
-      // socket.off('ice-candidate-refused', onIceCandidateRefused);
-    };
-  }, [peerConnection, connections]);
-
-  const subscribe = () => {
-    socket.emit('subscribe', userName);
-  }
-
-  const handleUserName = (event) => {
-    setUserName(event.target.value)
-  }
 
   const handleTargetName = (event) => {
     setTargetName(event.target.value)
@@ -125,84 +35,12 @@ export default function Home() {
     audioTrack.enabled = !audioTrack.enabled;
   }
 
-  const hangup = () => {
-    connections.forEach(conn => {
-      socket.emit('hangup', {
-        name: userName,
-        target: conn.target
-      });
-      conn.close();
-    });
-    setConnections([]);
-    localStream.getTracks().forEach(track => {
-      track.stop();
-      localStream.removeTrack(track);
-    });
-    localVideo.current.srcObject = null;
-    localVideo.current.srcObject = localStream;
-  }
-
-  const createConnection = async () => {
-    const stream = localStream? localStream :  await getMedia();
-    let peer;
-    try {
-      peer = new Peer();
-      stream.getTracks().forEach(track => peer.pc.addTrack(track, stream));
-      peer.name = userName;
-      peer.target = targetName;
-      peer.attachObserver(async (content) => {
-        switch (content.type) {
-          case 'connectionstatechange':
-            console.log(content.data);
-            if (content.data === 'failed' || content.data === 'disconnected' || content.data === 'closed') {
-              hangup();
-            }
-            break;
-          case 'negotiation':
-            console.log(content)
-            console.log(`emitindo negociação para: ${content.target}`);
-            socket.emit('negotiation', {
-              name: content.name,
-              target: content.target,
-              data: content.data
-            });
-            break;
-          case 'icecandidate':
-            console.log('emitindo icecandidate')
-            socket.emit('ice-candidate', {
-              name: content.name,
-              target: content.target,
-              data: content.data
-            });
-            break;
-        }
-      });
-    } catch (e) {
-      console.log(`handlePeerConnection() error: ${e.toString()}`);
-      alert(`handlePeerConnection() error: ${e.toString()}`);
-    }
-    setConnections(preConns => [...preConns, peer]);
-    peer.createOffer();
-  }
-
-  const getMedia = async () => {
-    let stream = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      setLocalStream(stream);
-      localVideo.current.srcObject = stream;
-    } catch (e) {
-      alert(`getUserMedia() error: ${e.toString()}`);
-    }
-    return stream;
-  }
-
   const call = () => {
-    if(connections.length > 0) {
+    if(user.connections.length > 0) {
       alert('atuamente somente uma conexao por vez');
       return;
     }
-    createConnection();
+    createConnection(targetName);
   }
 
   return (
@@ -220,26 +58,10 @@ export default function Home() {
           </div>
           {/* Aba para apresentar se você já está inscrito ou não  */}
           <div className="flex flex-row items-center mb-3">
-            <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-            <span className="text-sm font-medium text-gray-700">You're not subscribed yet</span>
+            <h3>Logado como: {user.name}</h3>
           </div>
           {/* Adicione novos spams abaixo caso necessário */}
           <div className="flex flex-col">
-            <div className="flex flex-col space-y-2 mb-4">
-              <input
-                type="text"
-                value={userName}
-                placeholder="Enter your code"
-                onChange={handleUserName}
-                className="flex-grow w-full mr-2 rounded-md py-2 px-3 border border-gray-400 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
-                onClick={subscribe}
-              >
-                Subscribe
-              </button>
-            </div>
             <div className="flex flex-col mb-4">
               <h4 className="text-sm font-medium mb-2">Create or join a meeting</h4>
               <div className="flex flex-col space-y-2 mb-4">
@@ -291,65 +113,15 @@ export default function Home() {
             <h4 className="text-sm font-medium mb-2">Conexões ativas</h4>
             <ul className="flex flex-col space-y-2 flex-grow overflow-auto">
               {/* Apresentar os membros logados na sala */}
-              <li className="flex flex-col items-center">
-                {connections.map((conn, i) => 
-                  <li key={i}>
-                    {conn.target}
-                  </li>
-                )}
-              </li>
-              {/* Componente de chat #IDEIA */}
-              {/* <div className="absolute bottom-20 right-30 w-80 h-96 bg-white rounded-lg shadow-lg">
-                <div className="flex items-center justify-between px-7 py-3 bg-gray-200">
-                  <h4 className="font-bold text-gray-800">Chat</h4>
-                  <button className="text-gray-600  ">
-                  </button>
-                </div>
-                <div className="px-4 py-3" >
-                  <ul className="overflow-y-auto max-h-[400px]">
-                    <li className="mb-2 text-black">
-                      <span className="font-semibold">Usuário 1:</span> Olá!
-                    </li>
-                    <li className="mb-2 text-black">
-                      <span className="font-semibold">Usuário 2:</span> Oi, tudo bem?
-                    </li>
-                    <li className="mb-2 text-black">
-                      <span className="font-semibold">Usuário 1:</span> Sim
-                    </li>
-                  </ul>
-                  <div className="flex space-x-2 mt-4">
-                    <input
-                      type="text"
-                      placeholder="Digite sua mensagem"
-                      className="flex-grow border text-black border-gray-400 rounded-lg p-2"
-                    />
-                    <button className="bg-blue-500 text-black px-4 py-2 rounded-lg">
-                      Enviar
-                    </button>
-                  </div>
-                </div>
-              </div> */}
+              {user.connections.map((conn, i) => 
+                <li key={i} className="flex flex-col items-center">
+                  {conn.name}
+                </li>
+              )}
             </ul>
           </div>
         </div>
-        {/* Centralizar o VideoPeer #TODO Validar se não me perdi na hora de posicionar */}
-        <div className="flex flex-col items-center justify-center relative w-full">
-          <ul className="flex justify-center">
-            {connections.map((conn, i) => 
-                <li key={i}>
-                  <Video peer={conn} />
-                </li>
-            )}
-          </ul>
-          <video
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
-            width={400}
-            ref={localVideo}
-            playsInline
-            autoPlay
-            muted
-          ></video>
-        </div>
+        {crrCon && <Chat />}
       </main>
     </>
   )

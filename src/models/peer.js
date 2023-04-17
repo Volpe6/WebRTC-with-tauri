@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 /**
  * referencias:
  * https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Perfect_negotiation
@@ -5,7 +7,7 @@
  */
 class Peer {
 
-    constructor(polite) {
+    constructor() {
         this.config = {
             iceServers: [{urls: "stun:stun.stunprotocol.org"}]
         };
@@ -24,6 +26,10 @@ class Peer {
         this.pc.onconnectionstatechange = event => this._onConnectionStateChange(event);
         this.pc.oniceconnectionstatechange = event => this._onIceconnectionStateChange(event);
         this.pc.onnegotiationneeded = event => this._onNegotiationNeeded();
+        this.pc.ondatachannel = null;
+
+        this.channel = null;
+        this.channelName = null;
         
         window.peer = this;
     }
@@ -32,8 +38,15 @@ class Peer {
 
     detachAllObserver() { this.observers=[]; }
 
+    addTransceiver(track, streams) {
+        this.pc.addTransceiver(track, streams);
+    }
+
     close() {
         try {
+            if(this.channel) {
+                this.channel.close();
+            }
             this.pc.close();
         } catch (error) {
             this._notify({
@@ -42,6 +55,10 @@ class Peer {
             });
             return;
         }
+        this.channel.onmessage = null;
+        this.channel.onopen = null;
+        this.channel.onclose = null;
+        this.channel.onerror = null;
         this.pc.oniceconnectionstatechange = null;
         this.pc.onicegatheringstatechange = null;
         this.pc.onsignalingstatechange = null;
@@ -66,6 +83,13 @@ class Peer {
         }
     }
 
+    send(data) {
+        if(!this.channel) {
+            return;
+        }
+        this.channel.send(data);
+    }
+
     async treatNegotiation(content) {
         const description  = content.data;
         console.log(content);
@@ -74,9 +98,11 @@ class Peer {
                 description.type === "offer" &&
                 (this.makingOffer || this.pc.signalingState !== "stable");
 
+            
             this.ignoreOffer = !this.polite && offerCollision;
             if (this.ignoreOffer) {
                 console.log('ignorou a oferta');
+                this.pc.ondatachannel = event => this._onReceiveDataChannel(event);
                 this._notify({
                     type: 'negotiation',
                     data: this.pc.localDescription
@@ -93,47 +119,16 @@ class Peer {
                     data: this.pc.localDescription
                 });
             }
+            if(this.polite) {
+                this._createDataChannel();
+            }else {
+                this.pc.ondatachannel = event => this._onReceiveDataChannel(event);
+            }
         } catch (err) {
             console.error(err);
         }
     }
     
-    // async treatNegotiation(content) {
-    //     const description  = content.data;
-    //     console.log(content);
-    //     try {
-    //         // If we have a setRemoteDescription() answer operation pending, then
-    //       // we will be "stable" by the time the next setRemoteDescription() is
-    //       // executed, so we count this being stable when deciding whether to
-    //       // ignore the offer.
-    //       const isStable =
-    //           this.pc.signalingState == 'stable' ||
-    //           (this.pc.signalingState == 'have-local-offer' && this.srdAnswerPending);
-    //       this.ignoreOffer =
-    //           description.type == 'offer' && !this.polite && (this.makingOffer || !isStable);
-    //       if (this.ignoreOffer) {
-    //         console.log('glare - ignoring offer');
-    //         return;
-    //       }
-    //       this.srdAnswerPending = description.type == 'answer';
-    //       console.log(`SRD(${description.type})`);
-    //       await this.pc.setRemoteDescription(description);
-    //       console.log('remote description seteded')
-    //       this.srdAnswerPending = false;
-    //       if (description.type == 'offer') {
-    //         console.log('SLD to get back to stable');
-    //         await this.pc.setLocalDescription();
-    //         console.log('definindo descricao local')
-    //          this._notify({
-    //             type: 'negotiation',
-    //             data: this.pc.localDescription
-    //         });
-    //      }
-    //     } catch (err) {
-    //         console.error(err);
-    //     }
-    // }
-
     async createOffer() {
         this.pc.createOffer({
             offerToReceiveAudio: true,
@@ -162,6 +157,42 @@ class Peer {
     _notify(data) {
         const content = Object.assign({name: this.name, target: this.target}, data);
         this.observers.forEach(obs => obs(content));
+    }
+
+    _createDataChannel() {
+        if(!this.pc) {
+            throw new Error('peer RTCConnection nao criada');
+        }
+        this.channelName = uuidv4();
+        this.channel = this.pc.createDataChannel(this.channelName);
+        this.channel.onopen = (event) => this._onDataChannelOpen(event);
+        this.channel.onclose = (event) => this._onDataChannelClose(event);
+        this.channel.onmessage = (event) => this._onDataChannelMessage(event);
+        this.channel.onerror = (event) => this._onDataChannelError(event);
+    }
+
+    _onReceiveDataChannel(event) {
+        this.channel = event.channel;
+        this.channel.onopen = (event) => this._onDataChannelOpen(event);
+        this.channel.onclose = (event) => this._onDataChannelClose(event);
+        this.channel.onmessage = (event) => this._onDataChannelMessage(event);
+        this.channel.onerror = (event) => this._onDataChannelError(event);
+    }
+
+    _onDataChannelOpen(event) {
+        this._notify({type: 'datachannelopen', data:event});
+    }
+
+    _onDataChannelClose(event) {
+        this._notify({type: 'datachannelclose', data:event});
+    }
+
+    _onDataChannelMessage(event) {
+        this._notify({type: 'datachannelmessage', data:event});
+    }
+
+    _onDataChannelError(event) {
+        this._notify({type: 'datachannelerror', data:event});
     }
 
     async _onNegotiationNeeded() {
@@ -195,10 +226,10 @@ class Peer {
         console.log('all ice candidates obeteined');
     }
 
-    _onTrack({track, streams}) {
+    _onTrack(event) {
         this._notify({
             type: 'track',
-            data: {track, streams}
+            data: event
         });
     }
 
