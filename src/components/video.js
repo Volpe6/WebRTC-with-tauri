@@ -5,24 +5,26 @@ function Video({peer}) {
     const videoRef = useRef(null);
     
     useEffect(() => {
-        peer.attachObserver(async (content) => {
-            switch(content.type) {
-                case 'track':
-                    console.log('lidando com track')
-                    console.log(`track`, content)
-                    const { track, streams } = content.data;
-                    track.onunmute = () => {
+        peer.attachObserver({
+            obs: async (content) => {
+                switch(content.type) {
+                    case 'track':
+                        console.log('lidando com track')
+                        console.log(`track`, content)
+                        const { track, streams } = content.data;
+                        track.onunmute = () => {
+                            if (videoRef.current.srcObject) {
+                                return;
+                            }
+                            videoRef.current.srcObject = streams[0];
+                        };
+                        break;
+                    case 'close':
                         if (videoRef.current.srcObject) {
-                            return;
+                            videoRef.current.srcObject = null;
                         }
-                        videoRef.current.srcObject = streams[0];
-                    };
-                    break;
-                case 'close':
-                    if (videoRef.current.srcObject) {
-                        videoRef.current.srcObject = null;
-                    }
-                    break;
+                        break;
+                }
             }
         });
     }, []);

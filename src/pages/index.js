@@ -1,17 +1,15 @@
 import Head from 'next/head'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import useAuth from '../hook/useAuth';
-
-import { socket } from '../socket';
-import Peer from '@/models/peer';
-import User from '@/models/user';
-import Video from '../components/video';
+import useConnection from '../hook/useConnection';
 import Chat from '../components/chat';
 
 
 export default function Home() {
 
-  const { user, localStream, hangup, createConnection, currConnection: crrCon } = useAuth();
+  const { user } = useAuth();
+
+  const { userStream, hangUp, createConnection, currConnection: crrCon, shareCamera, shareDisplay } = useConnection();
 
   if(!user) {
     return;
@@ -24,13 +22,13 @@ export default function Home() {
   }
 
   const handleVideo = () => {
-    const videoTrack = localStream.getVideoTracks()[0];
+    const videoTrack = userStream.getVideoTracks()[0];
     // Define a propriedade "enabled" como "false" para desativar a transmissão de vídeo
     videoTrack.enabled = !videoTrack.enabled;
   }
 
   const handleAudio = () => {
-    const audioTrack = localStream.getAudioTracks()[0];
+    const audioTrack = userStream.getAudioTracks()[0];
     // Define a propriedade "enabled" como "false" para mutar o áudio
     audioTrack.enabled = !audioTrack.enabled;
   }
@@ -40,7 +38,7 @@ export default function Home() {
       alert('atuamente somente uma conexao por vez');
       return;
     }
-    createConnection(targetName);
+    createConnection({targetName: targetName});
   }
 
   return (
@@ -100,12 +98,14 @@ export default function Home() {
                     <line x1="3" y1="15" x2="21" y2="15"></line>
                   </svg>
                 </button>
-                <button title="Jump Out" onClick={hangup} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
+                <button title="Jump Out" onClick={hangUp} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
                   <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="css-i6dzq1">
                     <path d="M1 1l22 22M1 23L23 1"></path>
                   </svg>
 
                 </button>
+                <button onClick={shareCamera}>compartilha camera</button>
+                <button onClick={shareDisplay}>compartilha tela</button>
               </div>
 
             </div>

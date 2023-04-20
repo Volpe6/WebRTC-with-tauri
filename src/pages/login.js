@@ -1,15 +1,17 @@
 import Head from 'next/head';
-import Image from 'next/image';
 import { useState } from 'react';
 import useAuth from '../hook/useAuth';
+import useConnection from '../hook/useConnection';
 
 function Login() {
   const { singUp } = useAuth();
+  const { connectSocket } = useConnection();
   const [userName, setUserName] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     singUp(userName);
+    connectSocket();
   }
 
   return (

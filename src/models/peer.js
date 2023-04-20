@@ -7,16 +7,17 @@ import { v4 as uuidv4 } from 'uuid';
  */
 class Peer {
 
-    constructor() {
+    constructor(polite=null) {
         this.config = {
             iceServers: [{urls: "stun:stun.stunprotocol.org"}]
         };
 
-        this.observers = [];
+        this.observers = {};
+        this.transceiver = {};
         this.makingOffer = false;
         this.ignoreOffer = false;
         //https://stackoverflow.com/questions/73566978/how-to-define-polite-and-impolite-peer-in-perfect-negotiation-pattern
-        this.polite = null;
+        this.polite = polite;
 
         this.name = '';
         this.target = '';
@@ -26,6 +27,7 @@ class Peer {
         this.pc.onconnectionstatechange = event => this._onConnectionStateChange(event);
         this.pc.oniceconnectionstatechange = event => this._onIceconnectionStateChange(event);
         this.pc.onnegotiationneeded = event => this._onNegotiationNeeded();
+        this.pc.onsignalingstatechange = event => this._onSignalingStateChange(event);
         this.pc.ondatachannel = null;
 
         this.channel = null;
@@ -34,12 +36,70 @@ class Peer {
         window.peer = this;
     }
 
-    attachObserver(obs) { this.observers.push(obs); }
+    attachObserver(opts) { 
+        const options = Object.assign({id:uuidv4()}, opts);
+        this.observers[options.id] = options.obs; 
+    }
 
-    detachAllObserver() { this.observers=[]; }
+    detachObserver(id) { 
+        const deleted = delete this.observers[id];
+        if(!deleted) {
+            throw new Error(`não foi possivel remover o observador ${id}`);
+        }
+        console.log(`observador removido ${id}`);
+        console.log('observers', this.observers);
+    }
 
-    addTransceiver(track, streams) {
-        this.pc.addTransceiver(track, streams);
+    detachAllObserver() { this.observers={}; }
+
+    retriveAddTransceiver(opts) {
+        const { id } = opts;
+        let transceiver = this.transceiver[id];
+        if(transceiver) {
+            return transceiver;
+        }
+        return this.addTransceiver(opts);
+    }
+
+    addTransceiver(opts) {
+        const { trackOrKind, transceiverConfig, id } = opts;
+
+        const track = typeof trackOrKind === 'object'? trackOrKind : null;
+        const kind = typeof trackOrKind === 'object'? trackOrKind.kind : trackOrKind;
+
+        let transceiver = this.transceiver[id];
+        if(transceiver) {
+            throw new Error(`já existe transceiver para o id ${id}`);
+        }
+        transceiver = this.pc.getTransceivers().find(trv => {
+            const receiverKind = trv.receiver.track.kind;
+            if(receiverKind !== kind) {
+                return false;
+            }
+            for (const trcv of Object.values(this.transceiver)) {
+                //se ta na lista, entao nao pode ser esse
+                if(trv.receiver.track.id === trcv.receiver.track.id) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        if(transceiver) {
+            if(track) {
+                try {
+                    transceiver.direction = "sendrecv";
+                    transceiver.sender.replaceTrack(track);
+                    transceiver.sender.setStreams(transceiverConfig.streams[0]);
+                } catch (e) {
+                    throw new Error(`replace track stream error: ${e.toString()}`);
+                }
+            }
+            this.transceiver[id] = transceiver;
+            return transceiver;
+        }
+        transceiver = this.pc.addTransceiver(trackOrKind, transceiverConfig);
+        this.transceiver[id] = transceiver;
+        return transceiver;
     }
 
     close() {
@@ -55,10 +115,12 @@ class Peer {
             });
             return;
         }
-        this.channel.onmessage = null;
-        this.channel.onopen = null;
-        this.channel.onclose = null;
-        this.channel.onerror = null;
+        if(this.channel) {
+            this.channel.onmessage = null;
+            this.channel.onopen = null;
+            this.channel.onclose = null;
+            this.channel.onerror = null;
+        }
         this.pc.oniceconnectionstatechange = null;
         this.pc.onicegatheringstatechange = null;
         this.pc.onsignalingstatechange = null;
@@ -129,11 +191,8 @@ class Peer {
         }
     }
     
-    async createOffer() {
-        this.pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true,
-        })
+    async createOffer(opts={}) {
+        this.pc.createOffer(opts)
         .then(offer => {
             this._notify({
                 type: 'info',
@@ -156,7 +215,7 @@ class Peer {
 
     _notify(data) {
         const content = Object.assign({name: this.name, target: this.target}, data);
-        this.observers.forEach(obs => obs(content));
+        Object.values(this.observers).forEach(obs => obs(content));
     }
 
     _createDataChannel() {
@@ -247,6 +306,13 @@ class Peer {
         this._notify({
             type: 'connectionstatechange',
             data: this.pc.connectionState
+        });
+    }
+
+    _onSignalingStateChange(event) {
+        this._notify({
+            type: 'signalingstatechange',
+            data: this.pc.signalingState 
         });
     }
 }
