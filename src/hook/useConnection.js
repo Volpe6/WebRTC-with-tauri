@@ -2,6 +2,7 @@ import { createContext, useEffect, useState, useContext } from "react";
 import useAuth from './useAuth';
 import { io } from 'socket.io-client';
 import User from "@/models/user";
+import { DISPLAY_TYPES } from "@/models/peer";
 
 //Para lidar com esses todos dar uma olhada no link. Como responder APENAS com transceptores. https://blog.mozilla.org/webrtc/rtcrtptransceiver-explored/
 
@@ -35,6 +36,41 @@ export const ConnectionProvider = ({ children }) => {
             return null;
         }
 
+        // async function addTransceiver(opts) {
+        //     async function addStreamTracks(opts) {
+        //         const { userAudio, userCam, display } = opts;
+        //         if(userStream) {
+        //             const videoTrack = userStream.getVideoTracks()[0];
+        //             const audioTrack = userStream.getAudioTracks()[0];
+        //             if(videoTrack) {
+        //                 userCam.trackOrKind = videoTrack;
+        //                 userCam.transceiverConfig.streams = [userStream];
+        //             }
+        //             if(audioTrack) {
+        //                 userAudio.trackOrKind = audioTrack;
+        //                 userAudio.transceiverConfig.streams = [userStream];
+        //             }
+        //         }
+        //         if(displayStream) {
+        //             const displayTrack = displayStream.getVideoTracks()[0];
+        //             if(displayTrack) {
+        //                 display.trackOrKind = displayTrack;
+        //                 display.transceiverConfig.streams = [displayStream];
+        //             }
+        //         }
+        //     }
+        //     const { conn, config } = opts;
+        //     const userAudio = {id:'useraudio', trackOrKind: 'audio', transceiverConfig: config};
+        //     const userCam = {id:'usercam', trackOrKind: 'video', transceiverConfig: config};
+        //     const display = {id:'display', trackOrKind: 'video', transceiverConfig: config};
+
+        //     addStreamTracks({userAudio, userCam, display});
+
+        //     conn.peer.retriveAddTransceiver(userAudio);
+        //     conn.peer.retriveAddTransceiver(userCam);
+        //     conn.peer.retriveAddTransceiver(display);
+        // }
+
         async function createConn(opts) {
             const conn = new User(opts.targetName);
             conn.polite = opts.polite;
@@ -49,11 +85,9 @@ export const ConnectionProvider = ({ children }) => {
                         },
                         signalingstatechange: content => {
                             console.log('signalingstatechange', content);
-                            if(conn.polite && content.data == 'have-remote-offer' && conn.peer.pc.getTransceivers().length > 0) {
-                                conn.peer.retriveAddTransceiver({id:'useraudio', trackOrKind: 'audio'});
-                                conn.peer.retriveAddTransceiver({id:'usercam', trackOrKind: 'video'});
-                                conn.peer.retriveAddTransceiver({id:'display', trackOrKind: 'video'});
-                            }
+                            // if(conn.polite && content.data == 'have-remote-offer' && conn.peer.pc.getTransceivers().length > 0) {
+                            //     addTransceiver({conn, config: {direction: "sendrecv"}});
+                            // }
                         },
                         negotiation: content => {
                             console.log(`emitindo negociação para: ${content.target}`);
@@ -80,9 +114,9 @@ export const ConnectionProvider = ({ children }) => {
             });
             const peer = await conn.initPeer(user.name);
             if(!peer.polite) {
-                peer.retriveAddTransceiver({id:'useraudio', trackOrKind: 'audio'});
-                peer.retriveAddTransceiver({id:'usercam', trackOrKind: 'video'});
-                peer.retriveAddTransceiver({id:'display', trackOrKind: 'video'});
+                peer.addTransceiver({ id:'useraudio', trackOrKind:'audio', transceiverConfig:{direction: "sendrecv"} });
+                peer.addTransceiver({ id:'usercam', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
+                peer.addTransceiver({ id:'display', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
             }
             peer.createOffer();
             setCurrConnection(conn);
@@ -181,10 +215,12 @@ export const ConnectionProvider = ({ children }) => {
             conn.peer.close();
         });
         setUser({...user, connections: []});
-        userStream.getTracks().forEach(track => {
-            track.stop();
-            userStream.removeTrack(track);
-        });
+        if(userStream) {
+            userStream.getTracks().forEach(track => {
+                track.stop();
+                userStream.removeTrack(track);
+            });
+        }
     }
 
     const getUserMedia = async (opts) => {
@@ -213,22 +249,52 @@ export const ConnectionProvider = ({ children }) => {
         return stream;
     }
 
-    const shareCamera = async () => {
-        const stream = await getUserMedia({ video: true });
+    const toogleCamera = async () => {
+        let stream = userStream;
+        let videoTrack = null;
+        //verifica se o user stream ja foi definido e se possui o track de video
+        if(userStream && userStream.getVideoTracks()[0]) {
+            console.log('possui stream a vidoe track');
+            videoTrack = userStream.getVideoTracks()[0];
+            videoTrack.enabled = !videoTrack.enabled;
+        }
+        if(!videoTrack) {
+            console.log('nao possui stream ou vidoe track');
+            stream = await getUserMedia({ video: true });
+            videoTrack = stream.getVideoTracks()[0];
+        }
+        if(!currConnection) {
+            console.log('atuamente sem conec;ao');
+            return;
+        }
         const peer = currConnection.peer;
-        const tc = peer.retriveAddTransceiver({ id:'usercam' });
-        tc.direction = "sendrecv";
-        tc.sender.replaceTrack(stream.getVideoTracks()[0]);
-        tc.sender.setStreams(stream);
+        const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.USER_CAM });
+        if(!videoTrack.enabled) {
+            transceiver.sender.replaceTrack(null);
+            transceiver.direction = 'recvonly';
+            return;
+        }
+        transceiver.direction = "sendrecv";
+        transceiver.sender.replaceTrack(videoTrack);
+        transceiver.sender.setStreams(stream);
     }
+
+    // const toogleCamera = async () => {    
+    //     const stream = await getUserMedia({ video: true });
+    //     const peer = currConnection.peer;
+    //     const tc = peer.retriveAddTransceiver({ id:'usercam', trackOrKind: 'video'});
+    //     tc.direction = "sendrecv";
+    //     tc.sender.replaceTrack(stream.getVideoTracks()[0]);
+    //     tc.sender.setStreams(stream);
+    // }
 
     const shareDisplay = async () => {
         const stream = await getDisplayMedia();
         const peer = currConnection.peer;
-        const tc = peer.retriveAddTransceiver({ id:'display' });
-        tc.direction = "sendrecv";
-        tc.sender.replaceTrack(stream.getVideoTracks()[0]);
-        tc.sender.setStreams(stream);
+        const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.DISPLAY });
+        transceiver.direction = "sendrecv";
+        transceiver.sender.replaceTrack(stream.getVideoTracks()[0]);
+        transceiver.sender.setStreams(stream);
     }
 
     return (
@@ -240,7 +306,7 @@ export const ConnectionProvider = ({ children }) => {
             hangUp,
             createConnection,
             disconnectSocket,
-            shareCamera,
+            toogleCamera,
             shareDisplay
         }}>
             { children }

@@ -51,56 +51,83 @@ class Peer {
     }
 
     detachAllObserver() { this.observers={}; }
-
-    retriveAddTransceiver(opts) {
-        const { id } = opts;
-        let transceiver = this.transceiver[id];
-        if(transceiver) {
-            return transceiver;
-        }
-        return this.addTransceiver(opts);
+    
+    retriveTransceiver(opts) {
+        const { displayType } = opts;
+        return this.pc.getTransceivers()[displayType];
     }
 
     addTransceiver(opts) {
-        const { trackOrKind, transceiverConfig, id } = opts;
-
-        const track = typeof trackOrKind === 'object'? trackOrKind : null;
-        const kind = typeof trackOrKind === 'object'? trackOrKind.kind : trackOrKind;
-
-        let transceiver = this.transceiver[id];
-        if(transceiver) {
-            throw new Error(`já existe transceiver para o id ${id}`);
-        }
-        transceiver = this.pc.getTransceivers().find(trv => {
-            const receiverKind = trv.receiver.track.kind;
-            if(receiverKind !== kind) {
-                return false;
-            }
-            for (const trcv of Object.values(this.transceiver)) {
-                //se ta na lista, entao nao pode ser esse
-                if(trv.receiver.track.id === trcv.receiver.track.id) {
-                    return false;
-                }
-            }
-            return true;
-        });
-        if(transceiver) {
-            if(track) {
-                try {
-                    transceiver.direction = "sendrecv";
-                    transceiver.sender.replaceTrack(track);
-                    transceiver.sender.setStreams(transceiverConfig.streams[0]);
-                } catch (e) {
-                    throw new Error(`replace track stream error: ${e.toString()}`);
-                }
-            }
-            this.transceiver[id] = transceiver;
-            return transceiver;
-        }
-        transceiver = this.pc.addTransceiver(trackOrKind, transceiverConfig);
-        this.transceiver[id] = transceiver;
-        return transceiver;
+        const { trackOrKind, transceiverConfig } = opts;
+        this.pc.addTransceiver(trackOrKind, transceiverConfig);
     }
+
+    // retriveAddTransceiver(opts) {
+    //     const { trackOrKind, transceiverConfig, id } = opts;
+    //     const track = typeof trackOrKind === 'object'? trackOrKind : null;
+    //     let transceiver = this.transceiver[id];
+    //     if(transceiver) {
+    //         console.log('transiver position', transceiver.position);
+    //         transceiver = this.pc.getTransceivers()[transceiver.position];
+    //         if(transceiverConfig) {
+    //             transceiver.direction = transceiverConfig.direction;
+    //         }
+    //         if(track) {
+    //             try {
+    //                 transceiver.direction = "sendrecv";
+    //                 transceiver.sender.replaceTrack(track);
+    //                 transceiver.sender.setStreams(transceiverConfig.streams[0]);
+    //             } catch (e) {
+    //                 throw new Error(`replace track stream error: ${e.toString()}`);
+    //             }
+    //         }
+    //         return transceiver;
+    //     }
+    //     return this.addTransceiver(opts);
+    // }
+
+    // addTransceiver(opts) {
+    //     const { trackOrKind, transceiverConfig, id } = opts;
+
+    //     const track = typeof trackOrKind === 'object'? trackOrKind : null;
+    //     const kind = typeof trackOrKind === 'object'? trackOrKind.kind : trackOrKind;
+
+    //     let transceiver = this.transceiver[id];
+    //     if(transceiver) {
+    //         throw new Error(`já existe transceiver para o id ${id}`);
+    //     }
+    //     transceiver = this.pc.getTransceivers().find(trv => {
+    //         const receiverKind = trv.receiver.track.kind;
+    //         if(receiverKind !== kind) {
+    //             return false;
+    //         }
+    //         for (const trcv of Object.values(this.transceiver)) {
+    //             alert(trcv.position);
+    //             //se ta na lista, entao nao pode ser esse
+    //             if(trv.receiver.track.id === this.pc.getTransceivers()[trcv.position].receiver.track.id) {
+    //                 return false;
+    //             }
+    //         }
+    //         return true;
+    //     });
+    //     if(transceiver) {
+    //         if(track) {
+    //             try {
+    //                 transceiver.direction = "sendrecv";
+    //                 transceiver.sender.replaceTrack(track);
+    //                 transceiver.sender.setStreams(transceiverConfig.streams[0]);
+    //             } catch (e) {
+    //                 throw new Error(`replace track stream error: ${e.toString()}`);
+    //             }
+    //         }
+    //         this.transceiver[id] = transceiver;
+    //         return transceiver;
+    //     }
+    //     console.log('optss', opts);
+    //     transceiver = this.pc.addTransceiver(trackOrKind, transceiverConfig);
+    //     this.transceiver[id] = {position: (this.pc.getTransceivers().length - 1)};
+    //     return transceiver;
+    // }
 
     close() {
         try {
@@ -316,5 +343,13 @@ class Peer {
         });
     }
 }
+
+//os transiveirs sao adicionados de modo determinista entao caso sua ordem de adiçao seja modificada, aqui deve ser ajustado
+
+export const DISPLAY_TYPES = {
+    USER_AUDIO: 0,
+    USER_CAM: 1,
+    DISPLAY: 2
+};
 
 export default Peer;

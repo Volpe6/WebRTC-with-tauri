@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useAuth from '../hook/useAuth';
 import useConnection from '../hook/useConnection';
 import Chat from '../components/chat';
@@ -9,7 +9,7 @@ export default function Home() {
 
   const { user } = useAuth();
 
-  const { userStream, hangUp, createConnection, currConnection: crrCon, shareCamera, shareDisplay } = useConnection();
+  const { userStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, shareDisplay } = useConnection();
 
   if(!user) {
     return;
@@ -104,7 +104,7 @@ export default function Home() {
                   </svg>
 
                 </button>
-                <button onClick={shareCamera}>compartilha camera</button>
+                <button onClick={toogleCamera}>compartilha camera</button>
                 <button onClick={shareDisplay}>compartilha tela</button>
               </div>
 

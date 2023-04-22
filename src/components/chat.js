@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import useAuth from '../hook/useAuth';
 import useConnection from '../hook/useConnection';
 import Message from "./message";
+import { DISPLAY_TYPES } from "@/models/peer";
 
 function Chat() {
     const firstRender = useRef(true);
@@ -45,22 +46,25 @@ function Chat() {
                         console.log('lidando com track')
                         console.log(`track`, content)
                         const { transceiver, track, streams } = content.data;
-                        const trv = conn.peer.retriveAddTransceiver({id:'display'});
+                        const trv = conn.peer.retriveTransceiver({displayType: DISPLAY_TYPES.DISPLAY});
                         if(transceiver.mid == trv.mid) {
-                            alert('caiu no if transceiver');
                             track.onunmute = () => {
-                                if (displayRef.current.srcObject) {
-                                    return;
+                                // if (displayRef.current.srcObject) {
+                                //     return;
+                                // }
+                                if(streams.length > 0) {
+                                    displayRef.current.srcObject = new MediaStream(streams[0]);
                                 }
-                                displayRef.current.srcObject = streams[0];
                             };    
                             return;
                         }
                         track.onunmute = () => {
-                            if (videoRef.current.srcObject) {
-                                return;
+                            // if (videoRef.current.srcObject) {
+                            //     return;
+                            // }
+                            if(streams.length > 0) {
+                                videoRef.current.srcObject = new MediaStream(streams[0]);
                             }
-                            videoRef.current.srcObject = streams[0];
                         };
                     },
                     close: content => {}
