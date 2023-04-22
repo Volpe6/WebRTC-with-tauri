@@ -1,18 +1,7 @@
 import { createContext, useEffect, useState, useContext } from "react";
 import useAuth from './useAuth';
 import { io } from 'socket.io-client';
-import User from "@/models/user";
-import { DISPLAY_TYPES } from "@/models/peer";
-
-//Para lidar com esses todos dar uma olhada no link. Como responder APENAS com transceptores. https://blog.mozilla.org/webrtc/rtcrtptransceiver-explored/
-
-//TODO remover transivers nao usados ou reaproveita-los
-//TODO tentar usar no maximo 3 transivers: 1 pra audio, 1 pra camera web cam, 1 pra tela
-//TODO tratar melhor a desconexao
-
-//TODO mudar o nome do localStream para algo mais autoeexplicativo tipo: locaUserStream(refatorar em todos os lugares q usam)
-
-//TODO testar o seguinte codigo para ver se o transciver morre ou algo do tipo. await transceiver.sender.replaceTrack(null); transceiver.direction = "inactive";
+import Connection from "@/models/connection";
 
 const ConnectionContext = createContext();
 
@@ -32,13 +21,13 @@ export const ConnectionProvider = ({ children }) => {
         function findConnection(name) {
             const target = user.connections.find(target => target.name == name);
             if(target) {
-                return target.getPeerConnection();
+                return target.peer;
             }
             return null;
         }
 
         async function createConn(opts) {
-            const conn = new User(opts.targetName);
+            const conn = new Connection(opts.targetName);
             conn.polite = opts.polite;
             conn.attachObserver({
                 obs:async (content) => {
@@ -180,8 +169,7 @@ export const ConnectionProvider = ({ children }) => {
                 name: user.name,
                 target: conn.name
             });
-            conn.peer.closed = true;
-            conn.peer.close();
+            conn.close();
         });
         setUser({...user, connections: []});
         if(userStream) {
@@ -224,72 +212,22 @@ export const ConnectionProvider = ({ children }) => {
         return stream;
     }
 
-    /**
-     * Compartilha a camera d usuario. Se a camera ja estiver sendo compartilhada para o compartilhamento.
-     * Ao contrario do codigo do compartilhamento da tela, nesse caso tenta utilizar a stream ja existente 
-     * so adicionando os track ausentes 
-     */
     const toogleCamera = async () => {
-        let stream = userStream;
-        let videoTrack = null;
-        //verifica se o user stream ja foi definido e se possui o track de video
-        if(userStream && userStream.getVideoTracks()[0]) {
-            console.log('possui stream a vidoe track');
-            videoTrack = userStream.getVideoTracks()[0];
-            // troca o estado atual do video(se ira mostra-lo ou nao). Caso falso mostra uma tela preta
-            videoTrack.enabled = !videoTrack.enabled;
-        }
-        if(!videoTrack) {
-            console.log('nao possui stream ou vidoe track');
-            //se nao possui o track de video ele é requisitado
-            stream = await getUserMedia({ video: true });
-            videoTrack = stream.getVideoTracks()[0];
-        }
         if(!currConnection) {
-            console.log('atuamente sem conec;ao');
+            console.log('atuamente sem conexao');
             return;
         }
-        const peer = currConnection.peer;
-        const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.USER_CAM });
-        if(!videoTrack.enabled) {
-            transceiver.sender.replaceTrack(null);
-            /** codigo utilizado para notificar o outro lado q track foi parado. Apenas utilizar
-             *  replaceTrack(null) nao notifica o outro lado, e é indistinguivel de um problema de internet */
-            transceiver.direction = 'recvonly';
-            return;
-        }
-        transceiver.direction = "sendrecv";
-        transceiver.sender.replaceTrack(videoTrack);
-        transceiver.sender.setStreams(stream);
+        const stream = await currConnection.toogleCamera();
+        setUserStream(stream);
     }
 
     const toogleDisplay = async () => {
-        if(displayStream) {
-            displayStream.getTracks().forEach(track => {
-                track.stop();
-                displayStream.removeTrack(track);
-            });
-            setDisplayStream(null);
-            return;
-        }
-        const stream = await getDisplayMedia();
-        stream.getVideoTracks()[0].onended = function () {
-            setDisplayStream(null);
-        };
         if(!currConnection) {
-            console.log('atuamente sem conec;ao');
+            console.log('atuamente sem conexao');
             return;
         }
-        const peer = currConnection.peer;
-        const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.DISPLAY });
-        stream.getVideoTracks()[0].onended = function () {
-            transceiver.sender.replaceTrack(null);
-            transceiver.direction = 'recvonly';
-            setDisplayStream(null);
-        };
-        transceiver.direction = "sendrecv";
-        transceiver.sender.replaceTrack(stream.getVideoTracks()[0]);
-        transceiver.sender.setStreams(stream);
+        const stream = await currConnection.toogleDisplay({onended: () => setDisplayStream(null)});
+        setDisplayStream(stream);
     }
 
     return (

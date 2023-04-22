@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
  * referencias:
  * https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Perfect_negotiation
  * https://github.com/webrtc/samples/blob/gh-pages/src/content/peerconnection/perfect-negotiation/js/peer.js
+ * https://blog.mozilla.org/webrtc/rtcrtptransceiver-explored/
  */
 class Peer {
 
