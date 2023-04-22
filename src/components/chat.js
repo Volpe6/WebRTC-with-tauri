@@ -31,11 +31,14 @@ function Chat() {
             obs: async (content) => {
                 const strategy = {
                     datachannelopen: content => {
-                        if(conn.getPeerConnection().channel.readyState === 'open') {
+                        if(conn.peer.channel.readyState === 'open') {
                             console.log('canal de comunicao aberto');
                         }
                     },
-                    datachannelerror: content => {throw new Error(content.data);},
+                    datachannelclose: content => {
+                        conn.peer.close();
+                    },
+                    datachannelerror: content => {throw content.data},
                     datachannelmessage: content => {
                         const data = JSON.parse(content.data.data);
                         conn.receive(data.message);
@@ -47,24 +50,15 @@ function Chat() {
                         console.log(`track`, content)
                         const { transceiver, track, streams } = content.data;
                         const trv = conn.peer.retriveTransceiver({displayType: DISPLAY_TYPES.DISPLAY});
-                        if(transceiver.mid == trv.mid) {
-                            track.onunmute = () => {
-                                // if (displayRef.current.srcObject) {
-                                //     return;
-                                // }
-                                if(streams.length > 0) {
-                                    displayRef.current.srcObject = new MediaStream(streams[0]);
-                                }
-                            };    
-                            return;
-                        }
+                        const mediaRef = transceiver.mid == trv.mid? displayRef.current: videoRef.current;
+                        track.onmute = () => {
+                            mediaRef.srcObject = null;
+                        };
                         track.onunmute = () => {
-                            // if (videoRef.current.srcObject) {
-                            //     return;
-                            // }
-                            if(streams.length > 0) {
-                                videoRef.current.srcObject = new MediaStream(streams[0]);
+                            if (mediaRef.srcObject || streams.length == 0) {
+                                return;
                             }
+                            mediaRef.srcObject = new MediaStream(streams[0]);
                         };
                     },
                     close: content => {}

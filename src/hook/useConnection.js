@@ -22,6 +22,7 @@ export const ConnectionProvider = ({ children }) => {
     const [currConnection, setCurrConnection] = useState(null);
     const [userStream, setUserStream] = useState(null);
     const [displayStream, setDisplayStream] = useState(null);
+    const [subscribed, setSubscribed] = useState(false);
     
     useEffect(() => {
         if(!socket) {
@@ -35,41 +36,6 @@ export const ConnectionProvider = ({ children }) => {
             }
             return null;
         }
-
-        // async function addTransceiver(opts) {
-        //     async function addStreamTracks(opts) {
-        //         const { userAudio, userCam, display } = opts;
-        //         if(userStream) {
-        //             const videoTrack = userStream.getVideoTracks()[0];
-        //             const audioTrack = userStream.getAudioTracks()[0];
-        //             if(videoTrack) {
-        //                 userCam.trackOrKind = videoTrack;
-        //                 userCam.transceiverConfig.streams = [userStream];
-        //             }
-        //             if(audioTrack) {
-        //                 userAudio.trackOrKind = audioTrack;
-        //                 userAudio.transceiverConfig.streams = [userStream];
-        //             }
-        //         }
-        //         if(displayStream) {
-        //             const displayTrack = displayStream.getVideoTracks()[0];
-        //             if(displayTrack) {
-        //                 display.trackOrKind = displayTrack;
-        //                 display.transceiverConfig.streams = [displayStream];
-        //             }
-        //         }
-        //     }
-        //     const { conn, config } = opts;
-        //     const userAudio = {id:'useraudio', trackOrKind: 'audio', transceiverConfig: config};
-        //     const userCam = {id:'usercam', trackOrKind: 'video', transceiverConfig: config};
-        //     const display = {id:'display', trackOrKind: 'video', transceiverConfig: config};
-
-        //     addStreamTracks({userAudio, userCam, display});
-
-        //     conn.peer.retriveAddTransceiver(userAudio);
-        //     conn.peer.retriveAddTransceiver(userCam);
-        //     conn.peer.retriveAddTransceiver(display);
-        // }
 
         async function createConn(opts) {
             const conn = new User(opts.targetName);
@@ -85,9 +51,6 @@ export const ConnectionProvider = ({ children }) => {
                         },
                         signalingstatechange: content => {
                             console.log('signalingstatechange', content);
-                            // if(conn.polite && content.data == 'have-remote-offer' && conn.peer.pc.getTransceivers().length > 0) {
-                            //     addTransceiver({conn, config: {direction: "sendrecv"}});
-                            // }
                         },
                         negotiation: content => {
                             console.log(`emitindo negociação para: ${content.target}`);
@@ -125,7 +88,11 @@ export const ConnectionProvider = ({ children }) => {
 
         function onConnect() { console.log('conectado ao servidor de sinalização'); }
         function onDisconnect() { console.log('desconectado do server de sinalização'); }
-        function onSubscribed() { console.log('inscrito'); }
+       
+        function onSubscribed() { 
+            setSubscribed(true);
+            console.log('inscrito'); 
+        }
         
         async function onPolite(content) {
             createConn({targetName: content.target, polite: content.polite});
@@ -137,8 +104,9 @@ export const ConnectionProvider = ({ children }) => {
                 console.log('recebeu hangup nao possui uma conexão rtc iniciada');
                 return;
             }
+            target.closed = true;
             target.close();
-            setUser({...user, connections: user.connections.filter(conn => conn.target != content.name)});
+            setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
             console.log(`${content.name} desligado`);   
         }
 
@@ -172,7 +140,7 @@ export const ConnectionProvider = ({ children }) => {
         socket.on('hangup', onHangup);
         socket.on('polite', onPolite);
 
-        if(user) {
+        if(user && !subscribed) {
             socket.emit('subscribe', user.name);
         }
 
@@ -210,8 +178,9 @@ export const ConnectionProvider = ({ children }) => {
         user.connections.forEach(conn => {
             socket.emit('hangup',  {
                 name: user.name,
-                target: conn.target
+                target: conn.name
             });
+            conn.peer.closed = true;
             conn.peer.close();
         });
         setUser({...user, connections: []});
@@ -219,6 +188,12 @@ export const ConnectionProvider = ({ children }) => {
             userStream.getTracks().forEach(track => {
                 track.stop();
                 userStream.removeTrack(track);
+            });
+        }
+        if(displayStream) {
+            displayStream.getTracks().forEach(track => {
+                track.stop();
+                displayStream.removeTrack(track);
             });
         }
     }
@@ -249,6 +224,11 @@ export const ConnectionProvider = ({ children }) => {
         return stream;
     }
 
+    /**
+     * Compartilha a camera d usuario. Se a camera ja estiver sendo compartilhada para o compartilhamento.
+     * Ao contrario do codigo do compartilhamento da tela, nesse caso tenta utilizar a stream ja existente 
+     * so adicionando os track ausentes 
+     */
     const toogleCamera = async () => {
         let stream = userStream;
         let videoTrack = null;
@@ -256,10 +236,12 @@ export const ConnectionProvider = ({ children }) => {
         if(userStream && userStream.getVideoTracks()[0]) {
             console.log('possui stream a vidoe track');
             videoTrack = userStream.getVideoTracks()[0];
+            // troca o estado atual do video(se ira mostra-lo ou nao). Caso falso mostra uma tela preta
             videoTrack.enabled = !videoTrack.enabled;
         }
         if(!videoTrack) {
             console.log('nao possui stream ou vidoe track');
+            //se nao possui o track de video ele é requisitado
             stream = await getUserMedia({ video: true });
             videoTrack = stream.getVideoTracks()[0];
         }
@@ -271,6 +253,8 @@ export const ConnectionProvider = ({ children }) => {
         const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.USER_CAM });
         if(!videoTrack.enabled) {
             transceiver.sender.replaceTrack(null);
+            /** codigo utilizado para notificar o outro lado q track foi parado. Apenas utilizar
+             *  replaceTrack(null) nao notifica o outro lado, e é indistinguivel de um problema de internet */
             transceiver.direction = 'recvonly';
             return;
         }
@@ -279,19 +263,30 @@ export const ConnectionProvider = ({ children }) => {
         transceiver.sender.setStreams(stream);
     }
 
-    // const toogleCamera = async () => {    
-    //     const stream = await getUserMedia({ video: true });
-    //     const peer = currConnection.peer;
-    //     const tc = peer.retriveAddTransceiver({ id:'usercam', trackOrKind: 'video'});
-    //     tc.direction = "sendrecv";
-    //     tc.sender.replaceTrack(stream.getVideoTracks()[0]);
-    //     tc.sender.setStreams(stream);
-    // }
-
-    const shareDisplay = async () => {
+    const toogleDisplay = async () => {
+        if(displayStream) {
+            displayStream.getTracks().forEach(track => {
+                track.stop();
+                displayStream.removeTrack(track);
+            });
+            setDisplayStream(null);
+            return;
+        }
         const stream = await getDisplayMedia();
+        stream.getVideoTracks()[0].onended = function () {
+            setDisplayStream(null);
+        };
+        if(!currConnection) {
+            console.log('atuamente sem conec;ao');
+            return;
+        }
         const peer = currConnection.peer;
         const transceiver = peer.retriveTransceiver({ displayType: DISPLAY_TYPES.DISPLAY });
+        stream.getVideoTracks()[0].onended = function () {
+            transceiver.sender.replaceTrack(null);
+            transceiver.direction = 'recvonly';
+            setDisplayStream(null);
+        };
         transceiver.direction = "sendrecv";
         transceiver.sender.replaceTrack(stream.getVideoTracks()[0]);
         transceiver.sender.setStreams(stream);
@@ -307,7 +302,7 @@ export const ConnectionProvider = ({ children }) => {
             createConnection,
             disconnectSocket,
             toogleCamera,
-            shareDisplay
+            toogleDisplay
         }}>
             { children }
         </ConnectionContext.Provider>

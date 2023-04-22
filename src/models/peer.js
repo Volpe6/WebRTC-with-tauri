@@ -16,6 +16,10 @@ class Peer {
         this.transceiver = {};
         this.makingOffer = false;
         this.ignoreOffer = false;
+         /**
+         * indica que essa conexao foi fechada. Se essa variavel estiver falsa e o peer estiver desconectado, pode ter havido um erro de conexão ou um fluxo mal tratado
+         */
+        this.closed = false;
         //https://stackoverflow.com/questions/73566978/how-to-define-polite-and-impolite-peer-in-perfect-negotiation-pattern
         this.polite = polite;
 
@@ -62,79 +66,14 @@ class Peer {
         this.pc.addTransceiver(trackOrKind, transceiverConfig);
     }
 
-    // retriveAddTransceiver(opts) {
-    //     const { trackOrKind, transceiverConfig, id } = opts;
-    //     const track = typeof trackOrKind === 'object'? trackOrKind : null;
-    //     let transceiver = this.transceiver[id];
-    //     if(transceiver) {
-    //         console.log('transiver position', transceiver.position);
-    //         transceiver = this.pc.getTransceivers()[transceiver.position];
-    //         if(transceiverConfig) {
-    //             transceiver.direction = transceiverConfig.direction;
-    //         }
-    //         if(track) {
-    //             try {
-    //                 transceiver.direction = "sendrecv";
-    //                 transceiver.sender.replaceTrack(track);
-    //                 transceiver.sender.setStreams(transceiverConfig.streams[0]);
-    //             } catch (e) {
-    //                 throw new Error(`replace track stream error: ${e.toString()}`);
-    //             }
-    //         }
-    //         return transceiver;
-    //     }
-    //     return this.addTransceiver(opts);
-    // }
-
-    // addTransceiver(opts) {
-    //     const { trackOrKind, transceiverConfig, id } = opts;
-
-    //     const track = typeof trackOrKind === 'object'? trackOrKind : null;
-    //     const kind = typeof trackOrKind === 'object'? trackOrKind.kind : trackOrKind;
-
-    //     let transceiver = this.transceiver[id];
-    //     if(transceiver) {
-    //         throw new Error(`já existe transceiver para o id ${id}`);
-    //     }
-    //     transceiver = this.pc.getTransceivers().find(trv => {
-    //         const receiverKind = trv.receiver.track.kind;
-    //         if(receiverKind !== kind) {
-    //             return false;
-    //         }
-    //         for (const trcv of Object.values(this.transceiver)) {
-    //             alert(trcv.position);
-    //             //se ta na lista, entao nao pode ser esse
-    //             if(trv.receiver.track.id === this.pc.getTransceivers()[trcv.position].receiver.track.id) {
-    //                 return false;
-    //             }
-    //         }
-    //         return true;
-    //     });
-    //     if(transceiver) {
-    //         if(track) {
-    //             try {
-    //                 transceiver.direction = "sendrecv";
-    //                 transceiver.sender.replaceTrack(track);
-    //                 transceiver.sender.setStreams(transceiverConfig.streams[0]);
-    //             } catch (e) {
-    //                 throw new Error(`replace track stream error: ${e.toString()}`);
-    //             }
-    //         }
-    //         this.transceiver[id] = transceiver;
-    //         return transceiver;
-    //     }
-    //     console.log('optss', opts);
-    //     transceiver = this.pc.addTransceiver(trackOrKind, transceiverConfig);
-    //     this.transceiver[id] = {position: (this.pc.getTransceivers().length - 1)};
-    //     return transceiver;
-    // }
-
     close() {
         try {
-            if(this.channel) {
+            if(this.channel && (this.channel.readyState !== 'closed' && this.channel.readyState !== 'closing')) {
                 this.channel.close();
             }
-            this.pc.close();
+            if(this.pc) {
+                this.pc.close();
+            }
         } catch (error) {
             this._notify({
                 type: 'error',
@@ -148,12 +87,14 @@ class Peer {
             this.channel.onclose = null;
             this.channel.onerror = null;
         }
-        this.pc.oniceconnectionstatechange = null;
-        this.pc.onicegatheringstatechange = null;
-        this.pc.onsignalingstatechange = null;
-        this.pc.onicecandidate = null;
-        this.pc.ontrack = null;
-        this.pc.ondatachannel = null;
+        if(this.pc) {
+            this.pc.oniceconnectionstatechange = null;
+            this.pc.onicegatheringstatechange = null;
+            this.pc.onsignalingstatechange = null;
+            this.pc.onicecandidate = null;
+            this.pc.ontrack = null;
+            this.pc.ondatachannel = null;
+        }
         this._notify({type: 'close'});
     }
 
@@ -173,7 +114,12 @@ class Peer {
     }
 
     send(data) {
-        if(!this.channel) {
+        if(this.channel && this.channel.readyState === 'connecting') {
+            console.log('conexão nao esta aberta');
+            return;
+        }
+        if(!this.channel || (this.channel.readyState === 'closed' || this.channel.readyState === 'closing')) {
+            console.log("Conexão fechada");
             return;
         }
         this.channel.send(data);
@@ -258,6 +204,9 @@ class Peer {
     }
 
     _onReceiveDataChannel(event) {
+        if(this.channel && (this.channel.readyState === 'closed' || this.channel.readyState === 'closing')) {
+            throw new Error('canal fechado');
+        }
         this.channel = event.channel;
         this.channel.onopen = (event) => this._onDataChannelOpen(event);
         this.channel.onclose = (event) => this._onDataChannelClose(event);
@@ -266,6 +215,7 @@ class Peer {
     }
 
     _onDataChannelOpen(event) {
+        console.log('channel open');
         this._notify({type: 'datachannelopen', data:event});
     }
 
@@ -274,10 +224,12 @@ class Peer {
     }
 
     _onDataChannelMessage(event) {
+        console.log('channel message');
         this._notify({type: 'datachannelmessage', data:event});
     }
 
     _onDataChannelError(event) {
+        console.log('channel error');
         this._notify({type: 'datachannelerror', data:event});
     }
 

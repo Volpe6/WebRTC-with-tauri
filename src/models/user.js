@@ -75,7 +75,7 @@ class User {
         if(!this.peer) {
             throw new Error('a conexao nao foi estabelecida');
         }
-        if(!this.getPeerConnection().channel || this.getPeerConnection().channel.readyState !== 'open') {
+        if(!this.peer.channel || this.peer.channel.readyState !== 'open') {
             throw new Error('o canal de comunicacao nao foi aberto')
         }
         const msg = this._addMessage(this.peer.name, this.peer.target, data);
