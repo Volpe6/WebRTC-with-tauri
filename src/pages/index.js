@@ -10,7 +10,7 @@ export default function Home() {
   const { user } = useAuth();
   const displayRef = useRef(null);
 
-  const { userStream, displayStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, toogleDisplay } = useConnection();
+  const { userStream, displayStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, toogleAudio, toogleDisplay } = useConnection();
 
   if(!user) {
     return;
@@ -114,6 +114,7 @@ export default function Home() {
                 </button>
                 <button onClick={toogleCamera}>compartilha camera</button>
                 <button onClick={toogleDisplay}>compartilha tela</button>
+                <button onClick={toogleAudio}>audio</button>
               </div>
 
             </div>

@@ -41,13 +41,15 @@ function Chat() {
                         setMessages([...conn.getMessages()]);
                     },
                     changeuserstream: content => {
-                        if(content.data) {
-                            localVideoRef.current.srcObject = content.data;
+                        const { stream } = content.data;
+                        if(stream) {
+                            localVideoRef.current.srcObject = stream;
                         }
                     },
                     changedisplaystream: content => {
-                        if(content.data) {
-                            localDisplayRef.current.srcObject = content.data;
+                        const { stream } = content.data;
+                        if(stream) {
+                            localDisplayRef.current.srcObject = stream;
                         }
                     },
                     track: content => {

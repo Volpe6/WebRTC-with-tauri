@@ -39,8 +39,11 @@ export const ConnectionProvider = ({ children }) => {
                                 hangUp();
                             }
                         },
-                        signalingstatechange: content => {
+                        signalingstatechange: async (content) => {
                             console.log('signalingstatechange', content);
+                            if(conn.polite && content.data === 'have-remote-offer') {
+                                await conn.toogleAudio({ enabled:true });
+                            }
                         },
                         negotiation: content => {
                             console.log(`emitindo negociação para: ${content.target}`);
@@ -67,7 +70,8 @@ export const ConnectionProvider = ({ children }) => {
             });
             const peer = await conn.initPeer(user.name);
             if(!peer.polite) {
-                peer.addTransceiver({ id:'useraudio', trackOrKind:'audio', transceiverConfig:{direction: "sendrecv"} });
+                const audioStream = await conn.toogleAudio({ enabled: true });
+                peer.addTransceiver({ id:'useraudio', trackOrKind: audioStream.getAudioTracks()[0], transceiverConfig:{direction: "sendrecv", streams:[audioStream]} });
                 peer.addTransceiver({ id:'usercam', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
                 peer.addTransceiver({ id:'display', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
             }
@@ -187,19 +191,31 @@ export const ConnectionProvider = ({ children }) => {
         }
     }
 
-    const toogleCamera = async () => {
+    const toogleAudio = async (opts) => {
         if(!currConnection) {
             console.log('atuamente sem conexao');
             return;
         }
-        await currConnection.toogleCamera();
+        await currConnection.toogleAudio(opts);
         //a ideia do codigo abaixo era mostrar o video caso o usuario quisesse antes da conexao, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
         // if(!userStream) {
         //     setUserStream(await getUserMedia({ video: true }));
         // }
     }
 
-    const toogleDisplay = async () => {
+    const toogleCamera = async (opts) => {
+        if(!currConnection) {
+            console.log('atuamente sem conexao');
+            return;
+        }
+        await currConnection.toogleCamera(opts);
+        //a ideia do codigo abaixo era mostrar o video caso o usuario quisesse antes da conexao, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
+        // if(!userStream) {
+        //     setUserStream(await getUserMedia({ video: true }));
+        // }
+    }
+
+    const toogleDisplay = async (opts) => {
         if(!currConnection) {
             console.log('atuamente sem conexao');
             return;
@@ -218,6 +234,7 @@ export const ConnectionProvider = ({ children }) => {
             hangUp,
             createConnection,
             disconnectSocket,
+            toogleAudio,
             toogleCamera,
             toogleDisplay
         }}>
