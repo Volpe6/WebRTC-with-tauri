@@ -2,6 +2,7 @@ import { createContext, useEffect, useState, useContext } from "react";
 import useAuth from './useAuth';
 import { io } from 'socket.io-client';
 import Connection from "@/models/connection";
+import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
 
 const ConnectionContext = createContext();
 
@@ -186,39 +187,16 @@ export const ConnectionProvider = ({ children }) => {
         }
     }
 
-    const getUserMedia = async (opts) => {
-        let stream = null;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(opts);
-            if(userStream) {
-                stream.getTracks().forEach(track => userStream.addTrack(track));
-                stream = userStream;
-            }
-            setUserStream(stream);
-        } catch (e) {
-            throw new Error(`getUserMedia() error: ${e.toString()}`);
-        }
-        return stream;
-    }
-    
-    const getDisplayMedia = async (opts) => {
-        let stream = null;
-        try {
-            stream = await navigator.mediaDevices.getDisplayMedia(opts);
-            setDisplayStream(stream);
-        } catch (e) {
-            throw new Error(`getDisplayMedia() error: ${e.toString()}`);
-        }
-        return stream;
-    }
-
     const toogleCamera = async () => {
         if(!currConnection) {
             console.log('atuamente sem conexao');
             return;
         }
-        const stream = await currConnection.toogleCamera();
-        setUserStream(stream);
+        await currConnection.toogleCamera();
+        //a ideia do codigo abaixo era mostrar o video caso o usuario quisesse antes da conexao, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
+        // if(!userStream) {
+        //     setUserStream(await getUserMedia({ video: true }));
+        // }
     }
 
     const toogleDisplay = async () => {
@@ -226,8 +204,9 @@ export const ConnectionProvider = ({ children }) => {
             console.log('atuamente sem conexao');
             return;
         }
-        const stream = await currConnection.toogleDisplay({onended: () => setDisplayStream(null)});
-        setDisplayStream(stream);
+        await currConnection.toogleDisplay({onended: () => setDisplayStream(null)});
+        //a ideia do codigo abaixo era mostrar o display antes da conexao caso o usuario quisesse, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
+        // setDisplayStream(stream);
     }
 
     return (

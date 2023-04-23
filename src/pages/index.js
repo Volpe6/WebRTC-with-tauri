@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import useAuth from '../hook/useAuth';
 import useConnection from '../hook/useConnection';
 import Chat from '../components/chat';
@@ -8,12 +8,19 @@ import Chat from '../components/chat';
 export default function Home() {
 
   const { user } = useAuth();
+  const displayRef = useRef(null);
 
-  const { userStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, toogleDisplay } = useConnection();
+  const { userStream, displayStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, toogleDisplay } = useConnection();
 
   if(!user) {
     return;
   }
+
+  useEffect(() => {
+    if(userStream) {
+      displayRef.current.srcObject = displayStream;
+    }
+  }, [displayStream]);
 
   const [targetName, setTargetName] = useState('');
 
@@ -76,6 +83,7 @@ export default function Home() {
                 >
                   Join
                 </button>
+                <video ref={displayRef} playsInline autoPlay></video>
               </div>
               {/* Ações possíveis de serem realizadas durante a call */}
               {/*Estou usando os próprios ícones do tailwind mas achei o svg meio grande. Dá pra mudar futuramente */}

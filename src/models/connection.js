@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Message from "./message";
 import Peer, { DISPLAY_TYPES } from "./peer";
 import User from "./user";
+import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
 
 class Connection {
     constructor(name) {
@@ -12,8 +13,8 @@ class Connection {
         this.observers = {};
         this.polite = null;
 
-        this.displayStream = null;
-        this.userStream = null;
+        this.displayStream = null;//do local
+        this.userStream = null;//do local
     }
 
     getMessages() { return this.messages; }
@@ -35,29 +36,18 @@ class Connection {
     }
 
     async getUserMedia(opts) {
-        let stream = null;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(opts);
-            if(this.userStream) {
-                stream.getTracks().forEach(track => this.userStream.addTrack(track));
-                stream = this.userStream;
-            }
-            this.userStream = stream;
-        } catch (e) {
-            throw new Error(`getUserMedia() error: ${e.toString()}`);
+        let stream = await getUserMedia(opts);
+        if(this.userStream) {
+            stream.getTracks().forEach(track => this.userStream.addTrack(track));
+            stream = this.userStream;
         }
+        this.userStream = stream;
         return stream;
     }
 
     async getDisplayMedia(opts) {
-        let stream = null;
-        try {
-            stream = await navigator.mediaDevices.getDisplayMedia(opts);
-            this.displayStream = stream;
-        } catch (e) {
-            throw new Error(`getDisplayMedia() error: ${e.toString()}`);
-        }
-        return stream;
+        this.displayStream = await getDisplayMedia(opts);
+        return this.displayStream;
     }
 
     /**
@@ -83,6 +73,10 @@ class Connection {
         }
         if(!this.peer) {
             console.log('atuamente sem conexao');
+            this._notify({
+                type: 'changeuserstream',
+                data: stream
+            });
             return stream;
         }
         const transceiver = this.peer.retriveTransceiver({ displayType: DISPLAY_TYPES.USER_CAM });
@@ -91,11 +85,19 @@ class Connection {
             /** codigo utilizado para notificar o outro lado q track foi parado. Apenas utilizar
              *  replaceTrack(null) nao notifica o outro lado, e é indistinguivel de um problema de internet */
             transceiver.direction = 'recvonly';
+            this._notify({
+                type: 'changeuserstream',
+                data: stream
+            });
             return stream;
         }
         transceiver.direction = "sendrecv";
         transceiver.sender.replaceTrack(videoTrack);
         transceiver.sender.setStreams(stream);
+        this._notify({
+            type: 'changeuserstream',
+            data: stream
+        });
         return stream;
     }
 
@@ -107,6 +109,10 @@ class Connection {
                 this.displayStream.removeTrack(track);
             });
             this.displayStream = null;
+            this._notify({
+                type: 'changedisplaystream',
+                data: this.displayStream
+            });
             return this.displayStream;
         }
         const stream = await this.getDisplayMedia();
@@ -118,6 +124,10 @@ class Connection {
         };
         if(!this.peer) {
             console.log('atuamente sem conexao');
+            this._notify({
+                type: 'changedisplaystream',
+                data: this.displayStream
+            });
             return stream;
         }
         const transceiver = this.peer.retriveTransceiver({ displayType: DISPLAY_TYPES.DISPLAY });
@@ -132,6 +142,10 @@ class Connection {
         transceiver.direction = "sendrecv";
         transceiver.sender.replaceTrack(stream.getVideoTracks()[0]);
         transceiver.sender.setStreams(stream);
+        this._notify({
+            type: 'changedisplaystream',
+            data: this.displayStream
+        });
         return stream;
     }
 

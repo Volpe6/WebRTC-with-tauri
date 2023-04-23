@@ -96,6 +96,8 @@ class Peer {
             this.pc.ontrack = null;
             this.pc.ondatachannel = null;
         }
+        this.channel = null;
+        this.pc = null;
         this._notify({type: 'close'});
     }
 

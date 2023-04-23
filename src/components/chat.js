@@ -12,15 +12,10 @@ function Chat() {
     const videoRef = useRef(null);
     const displayRef = useRef(null);
     const localVideoRef = useRef(null);
+    const localDisplayRef = useRef(null);
 
     const { user } = useAuth();
-    const { userStream, currConnection: conn } = useConnection();
-
-    useEffect(() => {
-        if(userStream) {
-            localVideoRef.current.srcObject = userStream;
-        }
-    }, [userStream]);
+    const { currConnection: conn } = useConnection();
 
     useEffect(() => {
         if(!firstRender.current) {
@@ -44,6 +39,16 @@ function Chat() {
                         conn.receive(data.message);
                         console.log('user messages', conn.getMessages());
                         setMessages([...conn.getMessages()]);
+                    },
+                    changeuserstream: content => {
+                        if(content.data) {
+                            localVideoRef.current.srcObject = content.data;
+                        }
+                    },
+                    changedisplaystream: content => {
+                        if(content.data) {
+                            localDisplayRef.current.srcObject = content.data;
+                        }
                     },
                     track: content => {
                         console.log('lidando com track')
@@ -97,6 +102,7 @@ function Chat() {
                 Enviar
                 </button>
                 <video ref={localVideoRef} width={100} playsInline autoPlay muted></video>
+                <video ref={localDisplayRef} width={100} playsInline autoPlay muted></video>
             </div>
         </div>
     </>);
