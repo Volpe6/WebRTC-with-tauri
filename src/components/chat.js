@@ -9,8 +9,10 @@ function Chat() {
     const textInput = useRef(null);
     const [messages, setMessages] = useState([]);
     
+    const audioRef = useRef(null);
     const videoRef = useRef(null);
     const displayRef = useRef(null);
+    const localAudioRef = useRef(null);
     const localVideoRef = useRef(null);
     const localDisplayRef = useRef(null);
 
@@ -41,9 +43,14 @@ function Chat() {
                         setMessages([...conn.getMessages()]);
                     },
                     changeuserstream: content => {
-                        const { stream } = content.data;
+                        const { stream, mediaType } = content.data;
                         if(stream) {
-                            localVideoRef.current.srcObject = stream;
+                            if(mediaType === 'video') {
+                                localVideoRef.current.srcObject = new MediaStream([stream.getVideoTracks()[0]]);
+                            }
+                            if(mediaType === 'audio') {
+                                audioRef.current.srcObject = new MediaStream([stream.getAudioTracks()[0]]);
+                            }
                         }
                     },
                     changedisplaystream: content => {
@@ -57,7 +64,10 @@ function Chat() {
                         console.log(`track`, content)
                         const { transceiver, track, streams } = content.data;
                         const trv = conn.peer.retriveTransceiver({displayType: DISPLAY_TYPES.DISPLAY});
-                        const mediaRef = transceiver.mid == trv.mid? displayRef.current: videoRef.current;
+                        let mediaRef = transceiver.mid == trv.mid? displayRef.current: videoRef.current;
+                        if(track.kind === 'audio') {
+                            mediaRef = audioRef.current;
+                        }
                         track.onmute = () => {
                             mediaRef.srcObject = null;
                         };
@@ -65,7 +75,11 @@ function Chat() {
                             if (mediaRef.srcObject || streams.length == 0) {
                                 return;
                             }
-                            mediaRef.srcObject = new MediaStream(streams[0]);
+                            if(track.kind === 'audio') {
+                                mediaRef.srcObject = new MediaStream([streams[0].getAudioTracks()[0]]);
+                                return;
+                            }
+                            mediaRef.srcObject = new MediaStream([streams[0].getVideoTracks()[0]]);
                         };
                     },
                     close: content => {}
@@ -88,6 +102,7 @@ function Chat() {
         <div className="flex flex-col h-screen bg-purple-700 w-full">
             <div className="flex justify-start items-center bg-purple-600 p-4 space-x-2">
                 {/* <img src="https://i.pravatar.cc/50?img=2" alt="Avatar" class="rounded-full ml-2"/> */}
+                <audio ref={audioRef} autoPlay></audio>
                 <video ref={videoRef} width={100} playsInline autoPlay></video>
                 <video ref={displayRef} width={100} playsInline autoPlay></video>
                 <span>{conn.name}</span>
@@ -103,6 +118,7 @@ function Chat() {
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-r-full">
                 Enviar
                 </button>
+                <audio ref={localAudioRef} autoPlay muted></audio>
                 <video ref={localVideoRef} width={100} playsInline autoPlay muted></video>
                 <video ref={localDisplayRef} width={100} playsInline autoPlay muted></video>
             </div>
