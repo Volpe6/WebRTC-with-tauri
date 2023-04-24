@@ -35,6 +35,9 @@ export const ConnectionProvider = ({ children }) => {
                     const strategy = {
                         connectionstatechange: content => {
                             console.log('connection state', content.data);
+                            if(content.data === "connected") {
+                                alert('conectado');
+                            }
                             if (content.data === 'failed' || content.data === 'disconnected' || content.data === 'closed') {
                                 hangUp();
                             }
@@ -100,6 +103,9 @@ export const ConnectionProvider = ({ children }) => {
             }
             target.closed = true;
             target.close();
+            if(currConnection) {
+                setCurrConnection(null);
+            }
             setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
             console.log(`${content.name} desligado`);   
         }
@@ -188,6 +194,9 @@ export const ConnectionProvider = ({ children }) => {
                 track.stop();
                 displayStream.removeTrack(track);
             });
+        }
+        if(currConnection) {
+            setCurrConnection(null);
         }
     }
 

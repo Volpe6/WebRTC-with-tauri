@@ -49,7 +49,7 @@ function Chat() {
                                 localVideoRef.current.srcObject = new MediaStream([stream.getVideoTracks()[0]]);
                             }
                             if(mediaType === 'audio') {
-                                audioRef.current.srcObject = new MediaStream([stream.getAudioTracks()[0]]);
+                                localAudioRef.current.srcObject = new MediaStream([stream.getAudioTracks()[0]]);
                             }
                         }
                     },
