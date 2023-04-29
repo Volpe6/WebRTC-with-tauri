@@ -15,6 +15,7 @@ rust-version = "1.59"
 tauri-build = { version = "1.2.1", features = [] }
 
 [dependencies]
+tauri-plugin-fs-extra = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
 tauri-plugin-localhost = "0.1.0"
 portpicker = "0.1"
 serde_json = "1.0"

@@ -1,8 +1,8 @@
-const TYPES = {
+export const TYPES = {
     TEXT: 'text',
-    VIDEO: 'video',
-    IMAGE: 'image',
-}
+    CHUNK: 'chunk',
+    FILE_META: 'fileMeta'//informaçoes sobre o arquivo enviado(tamanho, nome....)
+};
 
 class Message {
     constructor(senderId, receiverId, message, type=TYPES.TEXT) {

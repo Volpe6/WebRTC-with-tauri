@@ -17,6 +17,7 @@ class Peer {
         this.transceiver = {};
         this.makingOffer = false;
         this.ignoreOffer = false;
+        this.clearingQueue = false;
          /**
          * indica que essa conexao foi fechada. Se essa variavel estiver falsa e o peer estiver desconectado, pode ter havido um erro de conexão ou um fluxo mal tratado
          */
@@ -127,6 +128,62 @@ class Peer {
         }
         this.channel.send(data);
     }
+    //envio de arquivo
+    //TODO verificar se por esse codigo aqui é o melhor
+    // send(e){
+    //     var chunkSize = 65535
+    //     while (e.byteLength) {
+    //         if (this._channel.bufferedAmount > this._channel.bufferedAmountLowThreshold) {
+    //         this._channel.onbufferedamountlow = () => {
+    //             this._channel.onbufferedamountlow = null;
+    //             this.send(e);
+    //         };
+    //         return;
+    //         }
+    //         const chunk = e.slice(0, chunkSize);
+    //         e = e.slice(chunkSize, e.byteLength);
+    //         this._channel.send(chunk);
+    // }
+
+    // sendFile(chunk) {
+    //     if(this.channel && this.channel.readyState === 'connecting') {
+    //         console.log('conexão nao esta aberta');
+    //         return;
+    //     }
+    //     if(!this.channel || (this.channel.readyState === 'closed' || this.channel.readyState === 'closing')) {
+    //         console.log("Conexão fechada");
+    //         return;
+    //     }
+    //         var chunkSize = 65535
+    //         while (e.byteLength) {
+    //             if (this._channel.bufferedAmount > this._channel.bufferedAmountLowThreshold) {
+    //             this._channel.onbufferedamountlow = () => {
+    //                 this._channel.onbufferedamountlow = null;
+    //                 this.send(e);
+    //             };
+    //             return;
+    //             }
+    //             const chunk = e.slice(0, chunkSize);
+    //             e = e.slice(chunkSize, e.byteLength);
+    //             this._channel.send(chunk);
+    //     }
+    // }
+
+    cleanChannelqueue() {
+        if(this.channel && this.channel.readyState === 'connecting') {
+            console.log('conexão nao esta aberta');
+            return;
+        }
+        if(!this.channel || (this.channel.readyState === 'closed' || this.channel.readyState === 'closing')) {
+            console.log("Conexão fechada");
+            return;
+        }
+        if(this.clearingQueue) {
+            console.log('limpando fila');
+            return;
+        }
+        this.clearingQueue = true;
+    }
 
     async treatNegotiation(content) {
         const description  = content.data;
@@ -204,6 +261,7 @@ class Peer {
         this.channel.onclose = (event) => this._onDataChannelClose(event);
         this.channel.onmessage = (event) => this._onDataChannelMessage(event);
         this.channel.onerror = (event) => this._onDataChannelError(event);
+        this.channel.onbufferedamountlow = (event) => this._onBufferedAmountLow(event);
     }
 
     _onReceiveDataChannel(event) {
@@ -215,6 +273,7 @@ class Peer {
         this.channel.onclose = (event) => this._onDataChannelClose(event);
         this.channel.onmessage = (event) => this._onDataChannelMessage(event);
         this.channel.onerror = (event) => this._onDataChannelError(event);
+        this.channel.onbufferedamountlow = (event) => this._onBufferedAmountLow(event);
     }
 
     _onDataChannelOpen(event) {
@@ -234,6 +293,13 @@ class Peer {
     _onDataChannelError(event) {
         console.log('channel error');
         this._notify({type: 'datachannelerror', data:event});
+    }
+
+    _onBufferedAmountLow(event) {
+        //fila esta limpa
+        this.clearingQueue = false;
+        console.log('channel BufferedAmountLow');
+        this._notify({type: 'datachannelbufferedamountlow', data:event});
     }
 
     async _onNegotiationNeeded() {

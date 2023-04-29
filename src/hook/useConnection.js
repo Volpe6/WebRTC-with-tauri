@@ -6,6 +6,12 @@ import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
 
 const ConnectionContext = createContext();
 
+//TODO: melhorar conexão
+//TODO: melhorar desconeçao
+//TODO: melhorar envio de arquivos
+//TODO: melhorar tratamento de erros
+//TODO: melhorar tratamento de erros no envio de arquivos
+
 export const ConnectionProvider = ({ children }) => {
     const { user, setUser } = useAuth();
     const [socket, setSocket] = useState(null);

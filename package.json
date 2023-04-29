@@ -18,6 +18,7 @@
     "react-dom": "18.2.0",
     "react-resizable": "^3.0.5",
     "socket.io-client": "^4.6.1",
+    "tauri-plugin-fs-extra-api": "https://github.com/tauri-apps/tauri-plugin-fs-extra",
     "tauri-plugin-websocket-api": "https://github.com/tauri-apps/tauri-plugin-websocket",
     "uuid": "^9.0.0"
   },

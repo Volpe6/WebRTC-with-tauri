@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import Message from "./message";
+import Message, { TYPES as MESSAGE_TYPES } from "./message";
 import Peer, { DISPLAY_TYPES } from "./peer";
 import User from "./user";
 import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
@@ -213,14 +213,15 @@ class Connection {
         return this.peer;
     }
 
-    send(data) {
+    send(data={type:MESSAGE_TYPES.TEXT}) {
         if(!this.peer) {
             throw new Error('a conexao nao foi estabelecida');
         }
         if(!this.peer.channel || this.peer.channel.readyState !== 'open') {
-            throw new Error('o canal de comunicacao nao foi aberto')
+            throw new Error('o canal de comunicacao nao foi aberto');
         }
-        const msg = this._addMessage(this.peer.name, this.peer.target, data);
+        const { message, type } = data;
+        const msg = this._addMessage(this.peer.name, this.peer.target, message, type);
         this.peer.send(JSON.stringify(msg));
     }
     
@@ -228,12 +229,15 @@ class Connection {
         if(!this.peer) {
             throw new Error('a conexao nao foi estabelecida');
         }
-        this._addMessage(this.peer.target, this.peer.name, data);
+        const { message, type } = data;
+        this._addMessage(this.peer.target, this.peer.name, message, type);
     }
 
-    _addMessage(sender, receiver, data) { 
-        const msg = new Message(sender, receiver, data);
-        this.messages.push(msg); 
+    _addMessage(sender, receiver, content, type) { 
+        const msg = new Message(sender, receiver, content, type);
+        if(type !== MESSAGE_TYPES.CHUNK) {
+            this.messages.push(msg); 
+        }
         return msg;
     }
 
