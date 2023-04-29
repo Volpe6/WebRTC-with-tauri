@@ -191,6 +191,7 @@ function Chat() {
         });
         sendFile.send();
         sendFiles.current = [...sendFiles.current, sendFile];
+        setMessages([...conn.getMessages()]);
     }
 
     return (<>

@@ -4,7 +4,12 @@ import { readBinaryFile, writeBinaryFile, BaseDirectory } from '@tauri-apps/api/
 const CHUNK_SIZE = 26624;
 
 const MAX_BUFFER_AMOUNT = Math.max(CHUNK_SIZE * 8, 5242880); // 8 chunks or at least 5 MiB
-const MAX_FILE_SIZE = 36986880;
+/**
+ * o tauri é muito lento pra lidar com arquivos, entao limitei pra 10mb
+ * de acordo com link abaixo vai melhorar no tauri v2
+ * https://github.com/tauri-apps/tauri/issues/1817
+ */
+const MAX_FILE_SIZE = 15728640;
 
 class FileUpload {
     constructor(opts) {
@@ -67,22 +72,6 @@ class FileUpload {
             .finally(() => this._notify({type: 'end', data: {id:this.id}}));
         }
     }
-    
-    //talvez mover esse codigo para o peer
-    // send(e){
-    //     var chunkSize = 65535
-    //     while (e.byteLength) {
-    //         if (this._channel.bufferedAmount > this._channel.bufferedAmountLowThreshold) {
-    //         this._channel.onbufferedamountlow = () => {
-    //             this._channel.onbufferedamountlow = null;
-    //             this.send(e);
-    //         };
-    //         return;
-    //         }
-    //         const chunk = e.slice(0, chunkSize);
-    //         e = e.slice(chunkSize, e.byteLength);
-    //         this._channel.send(chunk);
-    // }
 
     async send() {
         if(this.metaData.size > MAX_FILE_SIZE){
@@ -98,11 +87,11 @@ class FileUpload {
         .then(async contents => {
             console.log('terminou de ler')
             let offset = 0;
+            let sendedSize = 0;
             this.connection.peer.channel.bufferedAmountLowThreshold = MAX_BUFFER_AMOUNT;
             while(offset < this.metaData.size && !this.cancel) {
-                console.log('entrou while');
                 if(this.connection.peer.channel.bufferedAmount > this.connection.peer.channel.bufferedAmountLowThreshold) {
-                    // Limpando a fila de envio com uma mensagem vazia
+                    // esperando a fila de envio esvaziar
                    this.stopped = true;
                    this._notify({type:"cleanqueue"});
                    await new Promise(resolve => setTimeout(resolve, 1000));
@@ -113,7 +102,8 @@ class FileUpload {
                 console.log(`${this.id} send chunk`, chunk);
                 this._notify({type:"chunk", data: {id:this.id, chunk}});
                 offset += CHUNK_SIZE;
-                console.log(`enviado:`, (offset*100)/this.metaData.size);
+                sendedSize += chunk.buffer.byteLength;
+                console.log(`enviado:`, (sendedSize*100)/this.metaData.size);
             }
         })
         .catch(() => {
