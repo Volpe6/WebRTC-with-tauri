@@ -62,44 +62,6 @@ class Connection {
         }
     }
 
-    // async tryConnect(opts) {
-    //     if(this.tryingConnect) {
-    //         return;
-    //     }
-    //     this.tryingConnect = true;
-    //     while(this.retries<MAX_RETRIES) {
-    //         await toast.promise(
-    //             new Promise(async resolve => {
-    //                 if(this.peer) {
-    //                     this.close();
-    //                 }
-    //                 await this.initPeer(this.user.name);
-    //                 await new Promise(resolve => setTimeout(resolve, TIMEOUT));
-    //                 resolve();
-    //             }),
-    //             {
-    //                 pending: `tentatia de reconexão nº ${this.retries+1}. Para o usuário:${this.user.name}`,
-    //                 success: `não foi possivel conecatar ao usuário ${this.user.name}. tentando novamente`,
-    //                 error: 'erro na tentativa. tentando novamente'
-    //             }
-    //         );
-    //         // toast.info(`tentatia de reconexão nº ${this.retries+1}. Para o usuário:${this.user.name}`);
-    //         // if(this.polite) {
-    //         //             await this.peer.createAnswer();
-    //         //         } else {
-    //         //             await this.peer.createOffer();
-    //         //         }
-    //         // await new Promise(resolve => setTimeout(resolve, TIMEOUT));
-    //         this.retries++;
-    //     }
-    //     if(this.peer.pc && !['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
-    //         toast.info(`Não foi possivel restabelecer. Para o usuário:${this.user.name}`);
-    //         this._notify({type: 'connectionfailed'});
-    //     }
-    //     this.tryingConnect = false;
-    //     this.retries = 0;
-    // }
-
     getMessages() { return this.messages; }
 
     attachObserver(opts) { 
