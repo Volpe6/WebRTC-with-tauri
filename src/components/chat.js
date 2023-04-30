@@ -36,15 +36,6 @@ function Chat() {
         conn.attachObserver({
             obs: async (content) => {
                 const strategy = {
-                    datachannelopen: content => {
-                        if(conn.peer.channel.readyState === 'open') {
-                            console.log('canal de comunicao aberto');
-                        }
-                    },
-                    datachannelclose: content => {
-                        // conn.peer.close();
-                    },
-                    datachannelerror: content => {throw content.data},
                     datachannelmessage: async content => {
                         const msgStrategy = {
                             [MESSAGE_TYPES.TEXT]: (msg) => {},
