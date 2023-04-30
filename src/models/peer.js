@@ -251,10 +251,9 @@ class Peer {
             }
         } catch (err) {
             console.error(err);
-            /**
-             * se o erro for "Failed to execute 'setRemoteDescription' on 'RTCPeerConnection': Failed to set remote offer sdp: The order of m-lines in subsequent offer doesn't match order from previous offer/answer". Significa q perdeu a conexão e recebeu uma nova negociaçao, porem ainda esta com os dados do peer anterior q perdeu a conexao o q gera conflito e dispara o erro. Para o caso desse erro nao precisa se preocupar pq basta esperar q o peer dispare o estado disconnected ou failed q a tentativa de reconexao apartir desse lado da comunicaçao sera iniciada.
-             */
             this.emit('error', {data: `Peer ${this.name} >> falha na negociação: ${err.toString()}`});
+            this.close();
+            this._notify({type: "retryconnection"});
         }
     }
     

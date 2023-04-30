@@ -18,6 +18,7 @@ class Connection {
         this.polite = null;
         this.retries = 0;
         this.tryingConnect = false;
+        this.closed = false;
 
         this.displayStream = null;//do local
         this.userStream = null;//do local
@@ -33,14 +34,14 @@ class Connection {
         }
         const { userName } = opts
         this.tryingConnect = true;
-        while(this.retries<MAX_RETRIES) {
+        while(this.retries<MAX_RETRIES && !this.closed) {
             if(this.peer && this.peer.pc && ['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
                 break;
             }
             await toast.promise(
                 new Promise(async resolve => {
                     if(this.peer) {
-                        this.close();
+                        this.closePeer();
                     }
                     await this.initPeer(userName);
                     await new Promise(resolve => setTimeout(resolve, TIMEOUT));
@@ -56,7 +57,7 @@ class Connection {
         }
         this.tryingConnect = false;
         this.retries = 0;
-        if(this.peer.pc && !['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
+        if(this.peer && this.peer.pc && !['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
             toast.info(`Não foi possivel restabelecer. Para o usuário:${this.user.name}`);
             this._notify({type: 'connectionfailed'});
         }
@@ -229,7 +230,7 @@ class Connection {
         return stream;
     }
 
-    close() {
+    closePeer() {
         this.peer.closed = true;
         this.peer.close();
         this.peer = null;
@@ -245,6 +246,11 @@ class Connection {
                 this.displayStream.removeTrack(track);
             });
         }
+    }
+
+    close() {
+        this.closed = true;
+        this.closePeer();
     }
 
     async initPeer(userName) {

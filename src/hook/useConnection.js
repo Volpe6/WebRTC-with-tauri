@@ -54,6 +54,7 @@ export const ConnectionProvider = ({ children }) => {
             conn.attachObserver({
                 obs:async (content) => {
                     const strategy = {
+                        close: content => {},
                         error: content => toast.error(content.data),
                         // info: content => toast.warn(content.data),
                         connectionfailed: content => {
@@ -196,7 +197,7 @@ export const ConnectionProvider = ({ children }) => {
             socket.off('hangup', onHangup);
             socket.off('polite', onPolite);
         };
-    }, [socket, user]);
+    }, [socket, user, currConnection]);
 
     const connectSocket = () => {
         setSocket(io('http://webrtc-signaling-server.glitch.me/'));
