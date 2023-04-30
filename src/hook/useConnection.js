@@ -2,6 +2,7 @@ import { createContext, useEffect, useState, useContext } from "react";
 import useAuth from './useAuth';
 import { io } from 'socket.io-client';
 import Connection from "@/models/connection";
+import { toast } from "react-toastify";
 import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
 
 const ConnectionContext = createContext();
@@ -12,6 +13,9 @@ const ConnectionContext = createContext();
 //TODO: melhorar tratamento de erros
 //TODO: melhorar tratamento de erros no envio de arquivos
 
+//TODO quando a conexao fechar nao matar o chat so peer connection
+//TODO na reconexao tbm disparar o polite para definir novamente quem é o politico e o inpolitico
+
 export const ConnectionProvider = ({ children }) => {
     const { user, setUser } = useAuth();
     const [socket, setSocket] = useState(null);
@@ -19,6 +23,8 @@ export const ConnectionProvider = ({ children }) => {
     const [userStream, setUserStream] = useState(null);
     const [displayStream, setDisplayStream] = useState(null);
     const [subscribed, setSubscribed] = useState(false);
+
+    useEffect(() => {window.user = user}, [user]);
     
     useEffect(() => {
         if(!socket) {
@@ -34,18 +40,43 @@ export const ConnectionProvider = ({ children }) => {
         }
 
         async function createConn(opts) {
+            if(findConnection(opts.targetName)) {
+                toast.warning(`conexao para user ${opts.targetName} ja existe`);
+                return;
+            }
+            async function connect(opts) {
+                const { conn } = opts;
+                await conn.initPeer(user.name);
+                await conn.tryConnect();
+            }
             const conn = new Connection(opts.targetName);
             conn.polite = opts.polite;
             conn.attachObserver({
                 obs:async (content) => {
                     const strategy = {
-                        connectionstatechange: content => {
-                            console.log('connection state', content.data);
-                            if(content.data === "connected") {
-                                alert('conectado');
-                            }
-                            if (content.data === 'failed' || content.data === 'disconnected' || content.data === 'closed') {
-                                hangUp();
+                        connectionfailed: content => {
+                            console.log('conexao falhou');
+                            hangUp();
+                        },
+                        retryconnection: async content => {
+                            conn.close();
+                            await connect({conn: conn});
+                        },
+                        connectionstatechange: async content => {
+                            const state = content.data;
+                            console.log('connection state', state);
+                            switch(state) {
+                                case "connected":
+                                    toast.dismiss();
+                                    toast.info('conectado');
+                                    break;
+                                case "failed":
+                                case "disconnected":
+                                case "closed":
+                                    if(!peer.closed && !conn.tryingConnect) {
+                                        conn.retryConnect();
+                                    }
+                                    break;
                             }
                         },
                         signalingstatechange: async (content) => {
@@ -77,16 +108,9 @@ export const ConnectionProvider = ({ children }) => {
                     }
                 }
             });
-            const peer = await conn.initPeer(user.name);
-            if(!peer.polite) {
-                const audioStream = await conn.toogleAudio({ enabled: true });
-                peer.addTransceiver({ id:'useraudio', trackOrKind: audioStream.getAudioTracks()[0], transceiverConfig:{direction: "sendrecv", streams:[audioStream]} });
-                peer.addTransceiver({ id:'usercam', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
-                peer.addTransceiver({ id:'display', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
-            }
-            peer.createOffer();
             setCurrConnection(conn);
             setUser({...user, connections: [...user.connections, conn]});
+            await connect({conn: conn});
         }
 
         function onConnect() { console.log('conectado ao servidor de sinalização'); }
@@ -109,7 +133,7 @@ export const ConnectionProvider = ({ children }) => {
             }
             target.closed = true;
             target.close();
-            if(currConnection) {
+            if(currConnection && currConnection.name === content.name) {
                 setCurrConnection(null);
             }
             setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
@@ -146,7 +170,10 @@ export const ConnectionProvider = ({ children }) => {
         socket.on('hangup', onHangup);
         socket.on('polite', onPolite);
 
-        if(user && !subscribed) {
+        // if(user && !subscribed) {
+        //     socket.emit('subscribe', user.name);
+        // }
+        if(user) {
             socket.emit('subscribe', user.name);
         }
 

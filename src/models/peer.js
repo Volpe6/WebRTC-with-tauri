@@ -224,9 +224,32 @@ class Peer {
         }
     }
     
+    async createAnswer(opts) {
+        try {
+            const answer = await this.pc.createAnswer(opts);
+            this._notify({
+                type: 'info',
+                data: {
+                    info: 'criada resposta',
+                    data: offer
+                }
+            });
+            await this.pc.setLocalDescription(answer);
+            this._notify({
+                type: 'negotiation',
+                data: answer
+            });
+        } catch (error) {
+            this._notify({
+                type: 'error',
+                data: `Failed to create session description: ${error.toString()}`
+            });
+        }
+    }
+
     async createOffer(opts={}) {
-        this.pc.createOffer(opts)
-        .then(offer => {
+        try {
+            const offer = await this.pc.createOffer(opts);
             this._notify({
                 type: 'info',
                 data: {
@@ -234,16 +257,17 @@ class Peer {
                     data: offer
                 }
             });
-            return this.pc.setLocalDescription(offer);
-        })
-        .then(() => this._notify({
-            type: 'negotiation',
-            data: this.pc.localDescription
-        }))
-        .catch(error => this._notify({
-            type: 'error',
-            data: `Failed to create session description: ${error.toString()}`
-        }));
+            await this.pc.setLocalDescription(offer);
+            this._notify({
+                type: 'negotiation',
+                data: offer
+            });
+        } catch (error) {
+            this._notify({
+                type: 'error',
+                data: `Failed to create session description: ${error.toString()}`
+            });
+        }
     }
 
     _notify(data) {
@@ -265,9 +289,6 @@ class Peer {
     }
 
     _onReceiveDataChannel(event) {
-        if(this.channel && (this.channel.readyState === 'closed' || this.channel.readyState === 'closing')) {
-            throw new Error('canal fechado');
-        }
         this.channel = event.channel;
         this.channel.onopen = (event) => this._onDataChannelOpen(event);
         this.channel.onclose = (event) => this._onDataChannelClose(event);

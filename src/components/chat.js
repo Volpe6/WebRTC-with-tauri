@@ -42,7 +42,7 @@ function Chat() {
                         }
                     },
                     datachannelclose: content => {
-                        conn.peer.close();
+                        // conn.peer.close();
                     },
                     datachannelerror: content => {throw content.data},
                     datachannelmessage: async content => {

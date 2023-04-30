@@ -3,6 +3,10 @@ import Message, { TYPES as MESSAGE_TYPES } from "./message";
 import Peer, { DISPLAY_TYPES } from "./peer";
 import User from "./user";
 import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
+import { toast } from "react-toastify";
+
+const MAX_RETRIES = 5;
+const TIMEOUT = 5000;
 
 class Connection {
     constructor(name) {
@@ -12,9 +16,56 @@ class Connection {
         this.messages = [];
         this.observers = {};
         this.polite = null;
+        this.retries = 0;
+        this.tryingConnect = false;
 
         this.displayStream = null;//do local
         this.userStream = null;//do local
+    }
+
+    retryConnect() {
+        this._notify({type: "retryconnection"});
+    }
+
+    async tryConnect(opts) {
+        if(!this.peer.pc) {
+            console.log('conexao nao iniciada');
+            return;
+        }
+        if(this.tryingConnect) {
+            return;
+        }
+        this.tryingConnect = true;
+        while(this.retries<MAX_RETRIES 
+        && this.peer.pc
+        && !['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
+            // await toast.promise(
+            //     new Promise(async resolve => {
+            //         await this.peer.createOffer();
+            //         await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+            //         resolve();
+            //     }),
+            //     {
+            //         pending: `tentatia de reconexão nº ${this.retries+1}. Para o usuário:${this.user.name}`,
+            //         success: `não foi possivel conecatar ao usuário ${this.user.name}. tentando novamente`,
+            //         error: 'erro na tentativa. tentando novamente'
+            //     }
+            // )
+            toast.info(`tentatia de reconexão nº ${this.retries+1}. Para o usuário:${this.user.name}`);
+            if(this.polite) {
+                await this.peer.createAnswer();
+            } else {
+                await this.peer.createOffer();
+            }
+            await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+            this.retries++;
+        }
+        if(!['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
+            toast.info(`Não foi possivel restabelecer. Para o usuário:${this.user.name}`);
+            this._notify({type: 'connectionfailed'});
+        }
+        this.tryingConnect = false;
+        this.retries = 0;
     }
 
     getMessages() { return this.messages; }
@@ -206,9 +257,29 @@ class Connection {
             this.peer = new Peer(this.polite);
             this.peer.name = userName;
             this.peer.target = this.name;
-            this.peer.attachObserver({obs:async (content) => this._notify(content)});
+            this.peer.attachObserver({obs:async (content) => {
+                switch(content.type) {
+                    case "connectionstatechange":
+                        const state = content.data;
+                        switch(state) {
+                            case "connecting":
+                            case "connected":
+                                this.tryingConnect = false;
+                                this.retries = 0;
+                                break;
+                        }
+                        break;
+                }
+                this._notify(content);
+            }});
         } catch (e) {
             throw new Error(`handlePeerConnection() error: ${e.toString()}`);
+        }
+        if(!this.polite) {
+            const audioStream = await this.toogleAudio({ enabled: true });
+            this.peer.addTransceiver({ id:'useraudio', trackOrKind: audioStream.getAudioTracks()[0], transceiverConfig:{direction: "sendrecv", streams:[audioStream]} });
+            this.peer.addTransceiver({ id:'usercam', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
+            this.peer.addTransceiver({ id:'display', trackOrKind:'video', transceiverConfig:{direction: "sendrecv"} });
         }
         return this.peer;
     }
