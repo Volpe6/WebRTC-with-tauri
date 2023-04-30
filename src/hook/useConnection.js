@@ -46,28 +46,39 @@ export const ConnectionProvider = ({ children }) => {
             }
             async function connect(opts) {
                 const { conn } = opts;
-                await conn.initPeer(user.name);
-                await conn.tryConnect();
+                await conn.tryConnect({userName:user.name});
             }
             const conn = new Connection(opts.targetName);
             conn.polite = opts.polite;
+            conn.socket = socket;
             conn.attachObserver({
                 obs:async (content) => {
                     const strategy = {
+                        error: content => toast.error(content.data),
+                        // info: content => toast.warn(content.data),
                         connectionfailed: content => {
                             console.log('conexao falhou');
                             hangUp();
                         },
                         retryconnection: async content => {
-                            conn.close();
+                            toast.warning('reconectando');
                             await connect({conn: conn});
                         },
+                        datachannelopen: content => {
+                            if(conn.peer.channel.readyState === 'open') {
+                                toast.info('canal de comunicação aberto');
+                            }
+                        },
+                        datachannelclose: content => {
+                            // conn.peer.close();
+                        },
+                        datachannelerror: content => {throw content.data},
                         connectionstatechange: async content => {
                             const state = content.data;
                             console.log('connection state', state);
                             switch(state) {
                                 case "connected":
-                                    toast.dismiss();
+                                    // toast.dismiss();
                                     toast.info('conectado');
                                     break;
                                 case "failed":
@@ -131,13 +142,13 @@ export const ConnectionProvider = ({ children }) => {
                 console.log('recebeu hangup nao possui uma conexão rtc iniciada');
                 return;
             }
-            target.closed = true;
-            target.close();
-            if(currConnection && currConnection.name === content.name) {
-                setCurrConnection(null);
-            }
-            setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
-            console.log(`${content.name} desligado`);   
+            // target.closed = true;
+            // target.close();
+            // if(currConnection && currConnection.name === content.name) {
+            //     setCurrConnection(null);
+            // }
+            // setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
+            // console.log(`${content.name} desligado`);   
         }
 
         function onIceCandidate(content) {
@@ -168,12 +179,11 @@ export const ConnectionProvider = ({ children }) => {
         socket.on('ice-candidate', onIceCandidate);
         socket.on('subscribed', onSubscribed);
         socket.on('hangup', onHangup);
+        /** utilizado para saber se o peer desse lado da conexao é o indelicado ou nao em relaçao a conexao q se deseja ser estabelecida. 
+         * Essa informaçao so é retornada para o lado q requisitou, o par de comparaçao não é notificado*/
         socket.on('polite', onPolite);
 
-        // if(user && !subscribed) {
-        //     socket.emit('subscribe', user.name);
-        // }
-        if(user) {
+        if(user && !subscribed) {
             socket.emit('subscribe', user.name);
         }
 
