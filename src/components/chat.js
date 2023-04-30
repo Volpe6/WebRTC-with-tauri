@@ -18,6 +18,10 @@ function Chat() {
     const sendFiles = useRef([]);
     // const [file, setFile] = useState(null);
     
+    const [localAudioStream, setLocalAudioStream] = useState(null);
+    const [localVideoStream, setLocalVideoStream] = useState(null);
+    const [localDisplayStream, setLocalDisplayStream] = useState(null);
+
     const audioRef = useRef(null);
     const videoRef = useRef(null);
     const displayRef = useRef(null);
@@ -27,6 +31,24 @@ function Chat() {
 
     const { user } = useAuth();
     const { currConnection: conn } = useConnection();
+
+    useEffect(() => {
+        if(localAudioStream && localAudioRef.current) {
+            localAudioRef.current.srcObject = localAudioStream;
+        }
+    }, [localAudioStream]);
+    
+    useEffect(() => {
+        if(localVideoStream && localVideoRef.current) {
+            localVideoRef.current.srcObject = localVideoStream;
+        }
+    }, [localVideoStream]);
+    
+    useEffect(() => {
+        if(localDisplayStream && localDisplayRef.current) {
+            localDisplayRef.current.srcObject = localDisplayStream;
+        }
+    }, [localDisplayStream]);
 
     useEffect(() => {
         if(!firstRender.current) {
@@ -86,17 +108,17 @@ function Chat() {
                         const { stream, mediaType } = content.data;
                         if(stream) {
                             if(mediaType === 'video') {
-                                localVideoRef.current.srcObject = new MediaStream([stream.getVideoTracks()[0]]);
+                                setLocalVideoStream(new MediaStream([stream.getVideoTracks()[0]]));
                             }
                             if(mediaType === 'audio') {
-                                localAudioRef.current.srcObject = new MediaStream([stream.getAudioTracks()[0]]);
+                                setLocalAudioStream(new MediaStream([stream.getAudioTracks()[0]]));
                             }
                         }
                     },
                     changedisplaystream: content => {
                         const { stream } = content.data;
                         if(stream) {
-                            localDisplayRef.current.srcObject = stream;
+                            setLocalDisplayStream(new MediaStream(stream.getTracks()));
                         }
                     },
                     track: content => {
