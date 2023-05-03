@@ -3,7 +3,6 @@ import useAuth from './useAuth';
 import { io } from 'socket.io-client';
 import Connection from "@/models/connection";
 import { toast } from "react-toastify";
-import { getDisplayMedia, getUserMedia } from '../utils/mediaStream';
 
 const ConnectionContext = createContext();
 
@@ -14,17 +13,15 @@ const ConnectionContext = createContext();
 //TODO: melhorar tratamento de erros no envio de arquivos
 
 //TODO quando a conexao fechar nao matar o chat so peer connection
-//TODO na reconexao tbm disparar o polite para definir novamente quem é o politico e o inpolitico
 
 export const ConnectionProvider = ({ children }) => {
-    const { user, setUser } = useAuth();
+    const { user } = useAuth();
     const [socket, setSocket] = useState(null);
+    const [connections, setConnectios] = useState([]);
     const [currConnection, setCurrConnection] = useState(null);
-    const [userStream, setUserStream] = useState(null);
-    const [displayStream, setDisplayStream] = useState(null);
     const [subscribed, setSubscribed] = useState(false);
-
-    useEffect(() => {window.user = user}, [user]);
+    
+    useEffect(() => {window.connections = connections}, [connections]);
     
     useEffect(() => {
         if(!socket) {
@@ -32,16 +29,18 @@ export const ConnectionProvider = ({ children }) => {
         }
 
         function findConnection(name) {
-            const target = user.connections.find(target => target.name == name);
+            const target = connections.find(target => target.name == name);
             if(target) {
-                return target.peer;
+                return target;
             }
             return null;
         }
 
         async function createConn(opts) {
-            if(findConnection(opts.targetName)) {
-                toast.warning(`conexao para user ${opts.targetName} ja existe`);
+            const prevConn = findConnection(opts.targetName);
+            if(prevConn) {
+                toast.warning(`conexao para user ${opts.targetName} ja existe. tentando reaproveitar conexao`);
+                prevConn.retryConnect();
                 return;
             }
             async function connect(opts) {
@@ -59,9 +58,12 @@ export const ConnectionProvider = ({ children }) => {
                         // info: content => toast.warn(content.data),
                         connectionfailed: content => {
                             console.log('conexao falhou');
-                            hangUp();
+                            console.log(connections)
+                            console.log(conn)
+                            hangUp({target: conn.name});
                         },
                         retryconnection: async content => {
+                            // a reconexao pressupoe q o outro lado nao fechou o app
                             toast.warning('reconectando');
                             await connect({conn: conn});
                         },
@@ -70,9 +72,7 @@ export const ConnectionProvider = ({ children }) => {
                                 toast.info('canal de comunicação aberto');
                             }
                         },
-                        datachannelclose: content => {
-                            // conn.peer.close();
-                        },
+                        datachannelclose: content => {},
                         datachannelerror: content => {throw content.data},
                         connectionstatechange: async content => {
                             const state = content.data;
@@ -85,7 +85,7 @@ export const ConnectionProvider = ({ children }) => {
                                 case "failed":
                                 case "disconnected":
                                 case "closed":
-                                    if(!peer.closed && !conn.tryingConnect) {
+                                    if(!conn.peer.closed && !conn.tryingConnect) {
                                         conn.retryConnect();
                                     }
                                     break;
@@ -120,9 +120,11 @@ export const ConnectionProvider = ({ children }) => {
                     }
                 }
             });
+            console.log('setando conexao corrente');
             setCurrConnection(conn);
-            setUser({...user, connections: [...user.connections, conn]});
+            setConnectios([...connections, conn]);
             await connect({conn: conn});
+            console.log('tudo feito');
         }
 
         function onConnect() { console.log('conectado ao servidor de sinalização'); }
@@ -143,13 +145,9 @@ export const ConnectionProvider = ({ children }) => {
                 console.log('recebeu hangup nao possui uma conexão rtc iniciada');
                 return;
             }
-            // target.closed = true;
-            // target.close();
-            // if(currConnection && currConnection.name === content.name) {
-            //     setCurrConnection(null);
-            // }
-            // setUser({...user, connections: user.connections.filter(conn => conn.name != content.name)});
-            // console.log(`${content.name} desligado`);   
+            target.close();
+            // removeConnection({target: target.name});
+            toast.info(`${content.name} desligado`);
         }
 
         function onIceCandidate(content) {
@@ -159,7 +157,7 @@ export const ConnectionProvider = ({ children }) => {
                 return;
             }
             console.log('setando icecandidate');
-            target.addIceCandidate(content.data);
+            target.peer.addIceCandidate(content.data);
         }
 
         function onNegotiation(content) {
@@ -171,7 +169,7 @@ export const ConnectionProvider = ({ children }) => {
             }
             // target.polite = content.polite;
             console.log(`processando negociação de: ${content.name}`);
-            target.treatNegotiation(content);
+            target.peer.treatNegotiation(content);
         }
 
         socket.on('connect', onConnect);
@@ -197,7 +195,7 @@ export const ConnectionProvider = ({ children }) => {
             socket.off('hangup', onHangup);
             socket.off('polite', onPolite);
         };
-    }, [socket, user, currConnection]);
+    }, [socket, user, connections]);
 
     const connectSocket = () => {
         setSocket(io('http://webrtc-signaling-server.glitch.me/'));
@@ -215,31 +213,10 @@ export const ConnectionProvider = ({ children }) => {
         socket.emit('polite', {name: user.name, target: opts.targetName});
     }
 
-    const hangUp = () => {
-        if(!user) {
-            throw new Error('vc esta tentando finalizar todas as chamadas quando o usuario nao existe');
-        }
-        user.connections.forEach(conn => {
-            socket.emit('hangup',  {
-                name: user.name,
-                target: conn.name
-            });
-            conn.close();
-        });
-        setUser({...user, connections: []});
-        if(userStream) {
-            userStream.getTracks().forEach(track => {
-                track.stop();
-                userStream.removeTrack(track);
-            });
-        }
-        if(displayStream) {
-            displayStream.getTracks().forEach(track => {
-                track.stop();
-                displayStream.removeTrack(track);
-            });
-        }
-        if(currConnection) {
+    const removeConnection = (opts) => {
+        const {target} = opts;
+        setConnectios(connections.filter(conn=>conn.name !== target));
+        if(currConnection.name === target) {
             setCurrConnection(null);
         }
     }
@@ -250,10 +227,6 @@ export const ConnectionProvider = ({ children }) => {
             return;
         }
         await currConnection.toogleAudio(opts);
-        //a ideia do codigo abaixo era mostrar o video caso o usuario quisesse antes da conexao, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
-        // if(!userStream) {
-        //     setUserStream(await getUserMedia({ video: true }));
-        // }
     }
 
     const toogleCamera = async (opts) => {
@@ -262,10 +235,6 @@ export const ConnectionProvider = ({ children }) => {
             return;
         }
         await currConnection.toogleCamera(opts);
-        //a ideia do codigo abaixo era mostrar o video caso o usuario quisesse antes da conexao, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
-        // if(!userStream) {
-        //     setUserStream(await getUserMedia({ video: true }));
-        // }
     }
 
     const toogleDisplay = async (opts) => {
@@ -273,23 +242,47 @@ export const ConnectionProvider = ({ children }) => {
             console.log('atuamente sem conexao');
             return;
         }
-        await currConnection.toogleDisplay({onended: () => setDisplayStream(null)});
-        //a ideia do codigo abaixo era mostrar o display antes da conexao caso o usuario quisesse, e se houvesse conexao ja lincar a ela. Necessario pensar mais sobre
-        // setDisplayStream(stream);
+        await currConnection.toogleDisplay(opts);
+    }
+
+    const hangUp = (opts) => {
+        const { target } = opts;
+        const conn = connections.find(conn=>conn.name === target);
+        if(!conn) {
+            console.log(`conexão com o user "${target}" não encontrado`);
+            return;
+        }
+        socket.emit('hangup', {name:user.name, target: conn.name});
+        conn.close();
+        removeConnection({target});
+
+        // if(userStream) {
+        //     userStream.getTracks().forEach(track => {
+        //         track.stop();
+        //         userStream.removeTrack(track);
+        //     });
+        // }
+        // if(displayStream) {
+        //     displayStream.getTracks().forEach(track => {
+        //         track.stop();
+        //         displayStream.removeTrack(track);
+        //     });
+        // }
     }
 
     return (
         <ConnectionContext.Provider value={{ 
-            userStream,
-            displayStream,
+            socket,
             currConnection,
+            connections,
             connectSocket,
-            hangUp,
             createConnection,
+            removeConnection,
             disconnectSocket,
             toogleAudio,
             toogleCamera,
-            toogleDisplay
+            toogleDisplay,
+            hangUp
         }}>
             { children }
         </ConnectionContext.Provider>

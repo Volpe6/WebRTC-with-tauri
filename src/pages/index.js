@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import useAuth from '../hook/useAuth';
 import useConnection from '../hook/useConnection';
 import Chat from '../components/chat';
+import useCall from '@/hook/useCall';
 
 
 export default function Home() {
@@ -10,17 +11,19 @@ export default function Home() {
   const { user } = useAuth();
   const displayRef = useRef(null);
 
-  const { userStream, displayStream, hangUp, createConnection, currConnection: crrCon, toogleCamera, toogleAudio, toogleDisplay } = useConnection();
+  const { connections, toogleAudio, toogleCamera, toogleDisplay, hangUp } = useConnection();
+  
+  const { currConnection: conn, incomingCalls, sentCalls, acceptCall, refuseCall, call } = useCall();
 
   if(!user) {
     return;
   }
 
-  useEffect(() => {
-    if(userStream) {
-      displayRef.current.srcObject = displayStream;
-    }
-  }, [displayStream]);
+  // useEffect(() => {
+  //   if(userStream) {
+  //     displayRef.current.srcObject = displayStream;
+  //   }
+  // }, [displayStream]);
 
   const [targetName, setTargetName] = useState('');
 
@@ -40,12 +43,12 @@ export default function Home() {
     audioTrack.enabled = !audioTrack.enabled;
   }
 
-  const call = () => {
-    if(user.connections.length > 0) {
+  const handleCall = () => {
+    if(connections.length > 0) {
       alert('atuamente somente uma conexao por vez');
       return;
     }
-    createConnection({targetName: targetName});
+    call({targetName: targetName});
   }
 
   return (
@@ -77,11 +80,17 @@ export default function Home() {
                   onChange={handleTargetName}
                   className="flex-grow mr-2 w-full rounded-md py-2 px-3 border border-gray-400 focus:outline-none focus:border-blue-500"
                 />
-                <button
+                {/* <button
                   className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
                   onClick={call}
                 >
                   Join
+                </button> */}
+                <button
+                  className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                  onClick={handleCall}
+                >
+                  call
                 </button>
                 <video ref={displayRef} playsInline autoPlay></video>
               </div>
@@ -106,7 +115,7 @@ export default function Home() {
                     <line x1="3" y1="15" x2="21" y2="15"></line>
                   </svg>
                 </button>
-                <button title="Jump Out" onClick={hangUp} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
+                <button title="Jump Out" onClick={() => hangUp({target: conn.name})} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
                   <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="css-i6dzq1">
                     <path d="M1 1l22 22M1 23L23 1"></path>
                   </svg>
@@ -118,19 +127,51 @@ export default function Home() {
               </div>
 
             </div>
+            <div className="flex">
+              <h4 className="text-sm font-medium mb-2">chamadas em execuçao</h4>
+              <ul>
+                {sentCalls.map((conn, i) => 
+                  <li key={i} className="flex flex-row items-center space-x-2">
+                    <span>chamando: {conn.target}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+            <div className="flex">
+              <h4 className="text-sm font-medium mb-2">chamadas recebidas</h4>
+              <ul>
+                {incomingCalls.map((conn, i) => 
+                  <li key={i} className="flex flex-row items-center space-x-2">
+                    <span>recebendo chamada: {conn.name}</span>
+                    <button
+                      className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                      onClick={() => acceptCall(i)}
+                    >
+                      aceitar
+                    </button>
+                    <button
+                      className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                      onClick={() => refuseCall(i)}
+                    >
+                      recusar
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
             <div className="flex flex-col flex-grow" />
-            <h4 className="text-sm font-medium mb-2">Conexões ativas</h4>
-            <ul className="flex flex-col space-y-2 flex-grow overflow-auto">
-              {/* Apresentar os membros logados na sala */}
-              {user.connections.map((conn, i) => 
-                <li key={i} className="flex flex-col items-center">
-                  {conn.name}
-                </li>
-              )}
-            </ul>
-          </div>
+              <h4 className="text-sm font-medium mb-2">Conexões ativas</h4>
+              <ul className="flex flex-col space-y-2 flex-grow overflow-auto">
+                {/* Apresentar os membros logados na sala */}
+                {connections.map((conn, i) => 
+                  <li key={i} className="flex flex-col items-center">
+                    {conn.name}
+                  </li>
+                )}
+              </ul>
+            </div>
         </div>
-        {crrCon && <Chat />}
+        {conn && <Chat />}
       </main>
     </>
   )

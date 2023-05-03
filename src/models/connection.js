@@ -34,6 +34,8 @@ class Connection {
         }
         const { userName } = opts
         this.tryingConnect = true;
+        //TODO como quero reutilizar essa conexao nesse momento eu reseto o closed. Tem q ver se isso nao quebra em algum momento quando é definido como true
+        this.closed = false;
         while(this.retries<MAX_RETRIES && !this.closed) {
             if(this.peer && this.peer.pc && ['connecting', 'connected'].includes(this.peer.pc.connectionState)) {
                 break;

@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
     }, [user]);
 
     const singUp = async (userName) => {
-        setUser({id:userName ,name:userName, connections:[]});
+        setUser({id:userName ,name:userName});
         router.push('/');
     }
 
