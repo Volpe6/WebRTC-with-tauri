@@ -144,7 +144,11 @@ function Chat() {
                             mediaRef.srcObject = new MediaStream([streams[0].getVideoTracks()[0]]);
                         };
                     },
-                    close: content => {}
+                    close: content => {
+                        audioRef.current.srcObject = null;
+                        videoRef.current.srcObject = null;
+                        displayRef.current.srcObject = null;
+                    }
                 };
                 const chosenStrategy = strategy[content.type];
                 if(chosenStrategy) {

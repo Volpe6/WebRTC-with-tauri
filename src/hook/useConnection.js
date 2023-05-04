@@ -3,6 +3,7 @@ import useAuth from './useAuth';
 import { io } from 'socket.io-client';
 import Connection from "@/models/connection";
 import { toast } from "react-toastify";
+import useCall from "./useCall";
 
 const ConnectionContext = createContext();
 
@@ -15,11 +16,14 @@ const ConnectionContext = createContext();
 //TODO quando a conexao fechar nao matar o chat so peer connection
 
 export const ConnectionProvider = ({ children }) => {
-    const { user } = useAuth();
+
     const [socket, setSocket] = useState(null);
     const [connections, setConnectios] = useState([]);
     const [currConnection, setCurrConnection] = useState(null);
     const [subscribed, setSubscribed] = useState(false);
+
+    const { user } = useAuth();
+    const call = useCall({ socket, connections, createConnection });
     
     useEffect(() => {window.connections = connections}, [connections]);
     
@@ -55,11 +59,12 @@ export const ConnectionProvider = ({ children }) => {
                     const strategy = {
                         close: content => {},
                         error: content => toast.error(content.data),
-                        // info: content => toast.warn(content.data),
+                        info: content => {
+                            console.warn(content.data);
+                            // toast.warn(content.data);
+                        },
                         connectionfailed: content => {
-                            console.log('conexao falhou');
-                            console.log(connections)
-                            console.log(conn)
+                            toast.info('conexao falhou');
                             hangUp({target: conn.name});
                         },
                         retryconnection: async content => {
@@ -120,11 +125,9 @@ export const ConnectionProvider = ({ children }) => {
                     }
                 }
             });
-            console.log('setando conexao corrente');
             setCurrConnection(conn);
             setConnectios([...connections, conn]);
             await connect({conn: conn});
-            console.log('tudo feito');
         }
 
         function onConnect() { console.log('conectado ao servidor de sinalização'); }
@@ -141,7 +144,7 @@ export const ConnectionProvider = ({ children }) => {
 
         function onHangup(content) {
             const target = findConnection(content.name);
-            if (!target) {
+            if (!target || !target.peer) {
                 console.log('recebeu hangup nao possui uma conexão rtc iniciada');
                 return;
             }
@@ -152,7 +155,7 @@ export const ConnectionProvider = ({ children }) => {
 
         function onIceCandidate(content) {
             const target = findConnection(content.name);
-            if(!target) {
+            if(!target || !target.peer) {
                 console.log('recebeu uma icecandidato mas nao possui uma conexão rtc iniciada');
                 return;
             }
@@ -163,7 +166,7 @@ export const ConnectionProvider = ({ children }) => {
         function onNegotiation(content) {
             console.log(`recebendo negociação: ${content.name}`);
             const target = findConnection(content.name);
-            if(!target) {
+            if(!target || !target.peer) {
                 console.log('recebeu uma negociacao mas nao possui uma conexão rtc iniciada');
                 return;
             }
@@ -197,6 +200,11 @@ export const ConnectionProvider = ({ children }) => {
         };
     }, [socket, user, connections]);
 
+    function createConnection(opts) {
+        console.log('polite', opts);
+        socket.emit('polite', {name: user.name, target: opts.targetName});
+    }
+
     const connectSocket = () => {
         setSocket(io('http://webrtc-signaling-server.glitch.me/'));
     }
@@ -206,11 +214,6 @@ export const ConnectionProvider = ({ children }) => {
             throw new Error('conexao de socket ausente');
         }
         socket.disconnect();
-    }
-
-    const createConnection = (opts) => {
-        console.log('polite', opts);
-        socket.emit('polite', {name: user.name, target: opts.targetName});
     }
 
     const removeConnection = (opts) => {
@@ -252,8 +255,12 @@ export const ConnectionProvider = ({ children }) => {
             console.log(`conexão com o user "${target}" não encontrado`);
             return;
         }
+        try {
+            conn.close();
+        } catch (error) {
+            toast.error(`nao foi possivel fechar a conexao corretamente. ${error}`);
+        }
         socket.emit('hangup', {name:user.name, target: conn.name});
-        conn.close();
         removeConnection({target});
 
         // if(userStream) {
@@ -275,6 +282,7 @@ export const ConnectionProvider = ({ children }) => {
             socket,
             currConnection,
             connections,
+            call,
             connectSocket,
             createConnection,
             removeConnection,

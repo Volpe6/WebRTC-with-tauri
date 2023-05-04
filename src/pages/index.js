@@ -4,6 +4,7 @@ import useAuth from '../hook/useAuth';
 import useConnection from '../hook/useConnection';
 import Chat from '../components/chat';
 import useCall from '@/hook/useCall';
+import Connection from '@/components/connection';
 
 
 export default function Home() {
@@ -11,9 +12,7 @@ export default function Home() {
   const { user } = useAuth();
   const displayRef = useRef(null);
 
-  const { connections, toogleAudio, toogleCamera, toogleDisplay, hangUp } = useConnection();
-  
-  const { currConnection: conn, incomingCalls, sentCalls, acceptCall, refuseCall, call } = useCall();
+  const { currConnection: conn, call, connections, toogleAudio, toogleCamera, toogleDisplay, hangUp } = useConnection();
 
   if(!user) {
     return;
@@ -44,11 +43,11 @@ export default function Home() {
   }
 
   const handleCall = () => {
-    if(connections.length > 0) {
-      alert('atuamente somente uma conexao por vez');
-      return;
-    }
-    call({targetName: targetName});
+    // if(connections.length > 0) {
+    //   alert('atuamente somente uma conexao por vez');
+    //   return;
+    // }
+    call.call({targetName: targetName});
   }
 
   return (
@@ -130,7 +129,7 @@ export default function Home() {
             <div className="flex">
               <h4 className="text-sm font-medium mb-2">chamadas em execuçao</h4>
               <ul>
-                {sentCalls.map((conn, i) => 
+                {call.sentCalls.map((conn, i) => 
                   <li key={i} className="flex flex-row items-center space-x-2">
                     <span>chamando: {conn.target}</span>
                   </li>
@@ -140,18 +139,18 @@ export default function Home() {
             <div className="flex">
               <h4 className="text-sm font-medium mb-2">chamadas recebidas</h4>
               <ul>
-                {incomingCalls.map((conn, i) => 
+                {call.incomingCalls.map((conn, i) => 
                   <li key={i} className="flex flex-row items-center space-x-2">
                     <span>recebendo chamada: {conn.name}</span>
                     <button
                       className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
-                      onClick={() => acceptCall(i)}
+                      onClick={() => call.acceptCall(i)}
                     >
                       aceitar
                     </button>
                     <button
                       className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
-                      onClick={() => refuseCall(i)}
+                      onClick={() => call.refuseCall(i)}
                     >
                       recusar
                     </button>
@@ -161,11 +160,11 @@ export default function Home() {
             </div>
             <div className="flex flex-col flex-grow" />
               <h4 className="text-sm font-medium mb-2">Conexões ativas</h4>
-              <ul className="flex flex-col space-y-2 flex-grow overflow-auto">
+              <ul className="divide-y divide-gray-200 overflow-auto">
                 {/* Apresentar os membros logados na sala */}
                 {connections.map((conn, i) => 
-                  <li key={i} className="flex flex-col items-center">
-                    {conn.name}
+                  <li key={i} className="py-4">
+                    <Connection connection={conn} />
                   </li>
                 )}
               </ul>

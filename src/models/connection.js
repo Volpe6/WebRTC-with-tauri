@@ -134,8 +134,18 @@ class Connection {
             track.enabled = enabled;
         }
         notify.data.stream = stream;
-        if(!this.peer || this.peer.pc.getTransceivers().length === 0) {
-            console.log('atuamente sem conexao ou sem nenhum transiver. A stream ainda sera retornada, mas nao anexada ao transiver');
+        if(!this.peer) {
+            this._notify({type: 'info', data: `Recuperando stream, porém a conexão com ${this.name} não foi iniciada. A stream ainda sera retornada, mas nao anexada automaticamente ao transiver`});
+            this._notify(notify);
+            return stream;
+        }
+        if(!this.peer.pc) {
+            this._notify({type: 'info', data: `Recuperando stream, porém a conexão rtc com ${this.name} não foi iniciada. A stream ainda sera retornada, mas nao anexada automaticamente ao transiver`});
+            this._notify(notify);
+            return stream;
+        }
+        if(this.peer.pc.getTransceivers().length === 0) {
+            this._notify({type: 'info', data: `Recuperando stream, porém nenhum transiver foi anexado a conexão rtc com ${this.name}. A stream ainda sera retornada, mas nao anexada automaticamente ao transiver`});
             this._notify(notify);
             return stream;
         }
