@@ -21,6 +21,7 @@ Para executar rode os seguintes comandos, aparecerá uma tela de aplicativo:
 ### Pré-requisitos
 
 - tauri configurado: [tauri](https://tauri.app/v1/guides/getting-started/prerequisites)
+- servidor de sinalização utilizado nessa versão do projeto: [v0.0.1](https://github.com/Volpe6/SignalingServer/releases/tag/v0.0.1)
 
 ### Features
 
