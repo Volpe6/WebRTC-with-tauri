@@ -13,13 +13,23 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^6.4.0",
+    "@fortawesome/free-solid-svg-icons": "^6.4.0",
+    "@fortawesome/react-fontawesome": "^0.2.0",
     "next": "13.2.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-resizable": "^3.0.5",
+    "react-toastify": "^9.1.2",
     "socket.io-client": "^4.6.1",
-    "tauri-plugin-websocket-api": "https://github.com/tauri-apps/tauri-plugin-websocket"
+    "tauri-plugin-fs-extra-api": "https://github.com/tauri-apps/tauri-plugin-fs-extra",
+    "tauri-plugin-websocket-api": "https://github.com/tauri-apps/tauri-plugin-websocket",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1.2.3"
+    "@tauri-apps/cli": "^1.2.3",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.3.1"
   }
 }

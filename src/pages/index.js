@@ -1,310 +1,176 @@
 import Head from 'next/head'
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import styles from '@/styles/Home.module.css'
-import { useEffect, useRef, useState } from 'react'
-
-import { socket } from '../socket';
+import { useState, useRef, useEffect } from 'react'
+import useAuth from '../hook/useAuth';
+import useConnection from '../hook/useConnection';
+import Chat from '../components/chat';
+import useCall from '@/hook/useCall';
+import Connection from '@/components/connection';
 
 
 export default function Home() {
-  const mediaButton = useRef(null);
-  const peerConnectionButton = useRef(null);
-  const createOfferButton = useRef(null);
-  const createAnswerButton = useRef(null);
-  
-  const callButton = useRef(null);
-  const hangupButton = useRef(null);
 
-  const answerSdpTextArea = useRef(null);
-  const offerSdpTextArea = useRef(null);
-  const copyAnswerSdpTextArea = useRef(null);
-  const copyOfferSdpTextArea = useRef(null);
-  const copyCandidatosTextArea = useRef(null);
-  const candidatosTextArea = useRef(null);
+  const { user } = useAuth();
+  const displayRef = useRef(null);
 
-  const localVideo = useRef(null);
-  const remoteVideo = useRef(null);
+  const { currConnection: conn, call, connections, toogleAudio, toogleCamera, toogleDisplay, hangUp } = useConnection();
 
-  const [startTime, setStartTime] = useState();
-  const [localStream, setLocalStream] = useState();
-  const [origin, setOrigin] = useState(false);
-  const [aanswer, setAanswer] = useState(false);
-  const [stateConnection, setStateConnection] = useState(undefined);
-  const [showCopyPasteAreaOffer, setShowCopyPasteAreaOffer] = useState(false);
-  const [showCopyPasteAreaAnswer, setShowCopyPasteAreaAnswer] = useState(true);
-  
-  const [peerConnection, setPeerConnection] = useState(null);
-
-  useEffect(() => {
-    mediaButton.current.disabled = false;
-    peerConnectionButton.current.disabled = true;
-    // createOfferButton.current.disabled = true;
-    // createAnswerButton.current.disabled = true;
-    hangupButton.current.disabled = false;
-  }, []);
-
-  useEffect(() => {
-    function onConnect() {
-      console.log('conectado ao server de sinalização');
-      alert('conectado ao server de sinalização');
-      socket.emit('hello');
-    }
-
-    function onDisconnect() {
-      alert('desconectado do server de sinalização');
-    }
-
-    function onIceCandidate(candidate) {
-      if(!peerConnection) {
-        console.log('recebeu uma icecandidato mas nao possui uma conexão rtc iniciada');
-        return;
-      }
-      console.log('recebeu um candidato ices');
-      peerConnection.addIceCandidate(candidate);
-    }
-    
-    function onAnswer(answer) {
-      if(aanswer) {
-        console.log('foi quem criou a resposta');
-        return;
-      }
-      if(!peerConnection) {
-        console.log('recebeu uma resposta mas nao possui uma conexão rtc iniciada');
-        return;
-      }
-      console.log('recebeu uma resposta');
-      console.log('resposta', answer);
-      peerConnection.setRemoteDescription(answer)
-      .then(() => {})
-      .catch(error => console.log('handle aswer error:', error.toString()));
-    }
-
-    function onOffer(offer) {
-      if(origin) {
-        console.log('foi quem criou a oferta');
-        return;
-      }
-      if(!peerConnection) {
-        console.log('recebeu uma oferta mas nao possui uma conexão rtc iniciada');
-        return;
-      }
-      setAanswer(true);
-      console.log('recebeu uma oferta');
-      peerConnection.setRemoteDescription(offer)
-      .then(() => peerConnection.createAnswer())
-      .then(answer => {
-        peerConnection.setLocalDescription(answer);
-        socket.emit('answer', answer);
-      })
-      .catch((error) => console.log('handle offer error:', error.toString()));
-    }
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('offer', onOffer);
-    socket.on('answer', onAnswer);
-    socket.on('ice-candidate', onIceCandidate);
-    socket.on('hello', () => {
-      alert('hello');
-    });
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('offer', onOffer);
-      socket.off('answer', onAnswer);
-      socket.off('ice-candidate', onIceCandidate);
-    };
-  }, [peerConnection, origin, aanswer]);
-  
-  const handleHangup = () => {
-    // copyAnswerSdpTextArea.current.value = '';
-    // copyOfferSdpTextArea.current.value = '';
-    // answerSdpTextArea.current.value = '';
-    // offerSdpTextArea.current.value = '';
-    console.log('Ending call');
-    peerConnection.close();
-    setPeerConnection(null);
-    hangupButton.current.disabled = true;
-    createOfferButton.current.disabled = true;
-    // createAnswerButton.current.disabled = true;
+  if(!user) {
+    return;
   }
 
+  // useEffect(() => {
+  //   if(userStream) {
+  //     displayRef.current.srcObject = displayStream;
+  //   }
+  // }, [displayStream]);
 
-  const handleMedia = async () => {
-    mediaButton.current.disabled = true;
+  const [targetName, setTargetName] = useState('');
 
-    // if(localStream) {
-    //   localVideo.current.srcObject = null;
-    //   localStream.getTrack().forEach(track => track.stop());
+  const handleTargetName = (event) => {
+    setTargetName(event.target.value)
+  }
+
+  const handleVideo = () => {
+    const videoTrack = userStream.getVideoTracks()[0];
+    // Define a propriedade "enabled" como "false" para desativar a transmissão de vídeo
+    videoTrack.enabled = !videoTrack.enabled;
+  }
+
+  const handleAudio = () => {
+    const audioTrack = userStream.getAudioTracks()[0];
+    // Define a propriedade "enabled" como "false" para mutar o áudio
+    audioTrack.enabled = !audioTrack.enabled;
+  }
+
+  const handleCall = () => {
+    // if(connections.length > 0) {
+    //   alert('atuamente somente uma conexao por vez');
+    //   return;
     // }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({video: true, audio:true});
-      setLocalStream(stream);
-      console.log('Received local stream');
-      localVideo.current.srcObject = stream;
-      peerConnectionButton.current.disabled = false;
-    } catch (e) {
-      alert(`getUserMedia() error: ${e.toString()}`);
-    }
-
+    call.call({targetName: targetName});
   }
 
-  const handleResize = () => {
-    console.log(`Remote video size changed to ${remoteVideo.videoWidth}x${remoteVideo.videoHeight} - Time since pageload ${performance.now().toFixed(0)}ms`);
-    if(startTime) {
-      const elapsedTime = window.performance.now() - startTime;
-      console.log('Setup time: ' + elapsedTime.toFixed(3) + 'ms');
-      setStartTime(null);
-    }
-  }
-
-  const handleLoadMetadata = (e, name) => {
-    console.log(`${name} video videoWidth: ${e.target.videoWidth}px,  videoHeight: ${e.target.videoHeight}px`);
-  }
-
-  const addIceCandidates = () => {
-    let candidates = JSON.parse(candidatosTextArea.current.value);
-    candidates.forEach(item => peerConnection.addIceCandidate(item));
-  }
-
-  const handlePeerConnection = () => {
-    console.log('start call');
-    const videoTracks = localStream.getVideoTracks();
-    const audioTracks = localStream.getAudioTracks();
-    
-    if (videoTracks.length > 0) {
-      console.log(`Using video device: ${videoTracks[0].label}`);
-    }
-
-    if (audioTracks.length > 0) {
-      console.log(`Using audio device: ${audioTracks[0].label}`);
-    }
-    let configuration = {
-      iceServers: [{urls: "stun:stun.stunprotocol.org"}]
-    };
-    
-    const pc = new RTCPeerConnection(configuration);
-    setPeerConnection(pc);
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-    pc.ontrack = ({ track, streams }) => {
-      // track.onunmute = () => {
-        // if (remoteVideo.current.srcObject) {
-        //   return;
-        // }
-        console.log('stream', streams);
-        remoteVideo.current.srcObject = streams[0];
-        console.log('remote video', remoteVideo.current);
-      // };
-    };
-    
-    pc.onicecandidate = (event) => {
-      if (event.candidate != null) {
-        socket.emit('ice-candidate', event.candidate);
-        // console.log('new ice candidate', event.candidate);
-      } else {
-        console.log('all ice candidates obeteined');
-      }
-    }
-    pc.oniceconnectionstatechange = (event) => {
-      console.log('handleconnectionstatechange', pc.iceConnectionState);
-    }
-    pc.onconnectionstatechange = (event) => {
-      console.log('handleconnectionstatechange', event);
-    }
-    console.log(localStream.getTracks());
-    console.log('Added local stream to local');
-
-    // createAnswerButton.current.disabled = false;
-    createOfferButton.current.disabled = false;
-  }
-
-  const createOffer = async () => {
-    setOrigin(true);
-    // createAnswerButton.current.disabled = true;
-    // createOfferButton.current.disabled = true;
-    setShowCopyPasteAreaOffer(true);
-    try {
-      const offer = await peerConnection.createOffer();
-      console.log('criada oferta', offer);
-      await peerConnection.setLocalDescription(offer);
-      socket.emit('offer', offer);
-    } catch (e) {
-      console.log(`Failed to create session description: ${e.toString()}`);
-    }
-  }
-
-  const setAnswer = async () => {
-    const sdp = answerSdpTextArea.current.value
-      .split('\n')
-      .map(l => l.trim())
-      .join('\r\n');
-    
-    const answer = {
-      type: 'answer',
-      sdp: sdp
-    };
-    try {
-      await peerConnection.setRemoteDescription(answer);
-    } catch (error) {
-      console.log('handle aswer error:', error.toString());
-    }
-  }
-
-  const createAnswer = async () => {
-    // createAnswerButton.current.disabled = true;
-    createOfferButton.current.disabled = true;
-    setShowCopyPasteAreaAnswer(true);
-    try {
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      copyAnswerSdpTextArea.current.value = answer.sdp;
-    } catch (error) {
-      console.log('handle aswer error:', error.toString());
-    }
-  }
-
-  const setOffer = async () => {
-    const sdp = offerSdpTextArea.current.value
-      .split('\n')
-      .map(l => l.trim())
-      .join('\r\n');
-    
-    const offer = {
-      type: 'offer',
-      sdp: sdp
-    };
-    try {
-      await peerConnection.setRemoteDescription(offer);
-    } catch (error) {
-      console.log('handle aswer error:', error.toString());
-    }
-  }
-  
   return (
     <>
       <Head>
-        <title>Create Next App</title>
-        <meta name="description" content="Generated by create next app" />
+        <title>Meet</title>
+        <meta name="description" content="Your virtual meet" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className={styles.main}>
-        <video ref={localVideo} onLoadedMetadata={(e) => handleLoadMetadata(e,'local')} playsInline autoPlay muted></video>
-        <video ref={remoteVideo} onResize={handleResize} onLoadedMetadata={(e) => handleLoadMetadata(e, 'remote')} playsInline autoPlay></video>
+      <main className="flex flex-row h-screen overflow-hidden">
+        <div className="flex flex-col justify-start w-1/4 bg-white border-r border-gray-200 px-8 py-6 min-w-[270px]">
+          <div className="flex flex-row items-center mb-5">
+            <h2 className="text-xl font-medium ">Meet</h2>
+          </div>
+          {/* Aba para apresentar se você já está inscrito ou não  */}
+          <div className="flex flex-row items-center mb-3">
+            <h3>Logado como: {user.name}</h3>
+          </div>
+          {/* Adicione novos spams abaixo caso necessário */}
+          <div className="flex flex-col">
+            <div className="flex flex-col mb-4">
+              <h4 className="text-sm font-medium mb-2">Create or join a meeting</h4>
+              <div className="flex flex-col space-y-2 mb-4">
+                <input
+                  type="text"
+                  value={targetName}
+                  placeholder="Enter your partner code"
+                  onChange={handleTargetName}
+                  className="flex-grow mr-2 w-full rounded-md py-2 px-3 border border-gray-400 focus:outline-none focus:border-blue-500"
+                />
+                {/* <button
+                  className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                  onClick={call}
+                >
+                  Join
+                </button> */}
+                <button
+                  className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                  onClick={handleCall}
+                >
+                  call
+                </button>
+                <video ref={displayRef} playsInline autoPlay></video>
+              </div>
+              {/* Ações possíveis de serem realizadas durante a call */}
+              {/*Estou usando os próprios ícones do tailwind mas achei o svg meio grande. Dá pra mudar futuramente */}
+              <div className="flex flex-row justify-center items-center mb-2 space-x-2">
+                <button title="Mute/Desmute Microphone" className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="css-i6dzq1">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="21 15 21 9 15 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                    <line x1="3" y1="21" x2="21" y2="21"></line>
+                    <line x1="14" y1="10" x2="21" y2="3"></line>
+                  </svg>
+                </button>
+                <button title="Share your screen" className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="css-i6dzq1">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <line x1="3" y1="15" x2="21" y2="15"></line>
+                  </svg>
+                </button>
+                <button title="Jump Out" onClick={() => hangUp({target: conn.name})} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="css-i6dzq1">
+                    <path d="M1 1l22 22M1 23L23 1"></path>
+                  </svg>
 
-        {stateConnection}
+                </button>
+                <button onClick={toogleCamera}>compartilha camera</button>
+                <button onClick={toogleDisplay}>compartilha tela</button>
+                <button onClick={toogleAudio}>audio</button>
+              </div>
 
-        <div className="box">
-            <button ref={mediaButton} onClick={handleMedia}>get media</button>
-            <button ref={peerConnectionButton} onClick={handlePeerConnection}>init PeerConection</button>
-            <button ref={createOfferButton} onClick={createOffer}>create offer</button>
-            <button ref={hangupButton} onClick={handleHangup}>hangup</button>
+            </div>
+            <div className="flex">
+              <h4 className="text-sm font-medium mb-2">chamadas em execuçao</h4>
+              <ul>
+                {call.sentCalls.map((conn, i) => 
+                  <li key={i} className="flex flex-row items-center space-x-2">
+                    <span>chamando: {conn.target}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+            <div className="flex">
+              <h4 className="text-sm font-medium mb-2">chamadas recebidas</h4>
+              <ul>
+                {call.incomingCalls.map((conn, i) => 
+                  <li key={i} className="flex flex-row items-center space-x-2">
+                    <span>recebendo chamada: {conn.name}</span>
+                    <button
+                      className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                      onClick={() => call.acceptCall(i)}
+                    >
+                      aceitar
+                    </button>
+                    <button
+                      className="rounded-md py-2 px-4 bg-blue-500 text-white font-medium focus:outline-none hover:bg-blue-600"
+                      onClick={() => call.refuseCall(i)}
+                    >
+                      recusar
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+            <div className="flex flex-col flex-grow" />
+              <h4 className="text-sm font-medium mb-2">Conexões ativas</h4>
+              <ul className="divide-y divide-gray-200 overflow-auto">
+                {/* Apresentar os membros logados na sala */}
+                {connections.map((conn, i) => 
+                  <li key={i} className="py-4">
+                    <Connection connection={conn} />
+                  </li>
+                )}
+              </ul>
+            </div>
         </div>
-        
+        {conn && <Chat />}
       </main>
     </>
   )

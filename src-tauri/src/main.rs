@@ -25,6 +25,7 @@ fn main() {
     }
 
   builder
+    .plugin(tauri_plugin_fs_extra::init())
     .run(context)
     .expect("error while running tauri application");
 }
