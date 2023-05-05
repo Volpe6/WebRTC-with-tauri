@@ -4,11 +4,11 @@ Este projeto é uma implementação do WebRTC para conexão ponto a ponto entre 
 
 WebRTC (Web Real-Time Communications) é uma tecnologia de comunicação em tempo real baseada em navegador, que permite a transferência de áudio, vídeo e dados diretamente entre navegadores sem a necessidade de plugins ou softwares adicionais. Para mais informações sobre WebRTC, consulte a documentação oficial da [MDN](https://developer.mozilla.org/pt-BR/docs/Web/API/WebRTC_API).
 
-O projeto nao utiliza o servidor TURN, utiliza apenas um servidor STUN da google. 
+O projeto não utiliza o servidor TURN, utiliza apenas um servidor STUN da google. 
 
 ## Começando
-
-Atualmente o aplicativo so permite uma conexão por vez.
+Este projeto foi uma prova de conceito para verificar a viabilidade de fazer um aplicativo desktop que permitisse fazer chamadas de video em tempo real. 
+O aplicativo foi feito para rodar em windows10. Atualmente o aplicativo so permite uma conexão por vez.
 
 Para executar rode os seguintes comandos, aparecerá uma tela de aplicativo:
 
@@ -20,7 +20,7 @@ Para executar rode os seguintes comandos, aparecerá uma tela de aplicativo:
 
 ### Pré-requisitos
 
-- tauri configurado [tauri](https://tauri.app/v1/guides/getting-started/prerequisites)
+- tauri configurado: [tauri](https://tauri.app/v1/guides/getting-started/prerequisites)
 
 ### Features
 
