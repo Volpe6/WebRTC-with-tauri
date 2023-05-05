@@ -38,6 +38,9 @@ function useCall({socket, connections, createConnection}) {
                         case 'callcomplete':
                             const success = content.data.callSuccess? 'atendida': 'não atendida';
                             console.log(`chamada para ${content.data.target} concluída. Estado: ${success}`);
+                            if(content.data.detail) {
+                                console.log(`detalhe ${content.data.detail}`);
+                            }
                             break;
                         case 'end':
                             setIncomingCalls(incomingCalls.filter(call => call.target !== content.data.target));
@@ -59,16 +62,38 @@ function useCall({socket, connections, createConnection}) {
             completeCall(content);
             toast.info('chamada recusada');
         }
+
+        function onCallCanceled(content) {
+            toast.info('recebendo cancelamento');
+            const incomingCall = incomingCalls.find(call => call.target === content.name);
+            const sentCall = sentCalls.find(call => call.target === content.name);
+            if(incomingCall) {
+                incomingCall.cancel();
+            }
+            if(sentCall) {
+                sentCall.cancel();
+            }
+        }
+        
+        function onCallError(content) {
+            toast.info('recebendo cancelamento');
+            const call = sentCalls.find(call => call.target === content.name);
+            if(call) {
+                call.cancel({detail: content.detail});
+            }
+        }
         
         socket.on('call', onCall);
         socket.on('callaccepted', onCallAccepted);
         socket.on('callrefused', onCallRefused);
-        // socket.on('callerror', onPolite);
-        // socket.on('callcanceled', onPolite);
+        socket.on('callerror', onCallError);
+        socket.on('callcanceled', onCallCanceled);
         return () => {
             socket.off('call', onCall);
             socket.off('callaccepted', onCallAccepted);
             socket.off('callrefused', onCallRefused);
+            socket.off('callerror', onCallError);
+            socket.off('callcanceled', onCallCanceled);
         };
     }, [socket, incomingCalls, sentCalls]);
    
@@ -98,6 +123,9 @@ function useCall({socket, connections, createConnection}) {
                     case 'callcomplete':
                         const success = content.data.callSuccess? 'atendida': 'não atendida';
                         console.log(`chamada para ${content.data.target} concluída. Estado: ${success}`);
+                        if(content.data.detail) {
+                            console.log(`detalhe ${content.data.detail}`);
+                        }
                         setSentCalls(sentCalls.filter(call => call.target !== content.data.target));
                         break;
                     case 'end':
@@ -109,6 +137,15 @@ function useCall({socket, connections, createConnection}) {
         })
         setSentCalls([...sentCalls, call]);
         await call.call();
+    }
+
+    const cancel = (index) => {
+        const sentCall = sentCalls[index];
+        sentCall.cancel();
+        socket.emit('callcanceled', {
+            name: user.name,
+            target: sentCall.target
+        });
     }
 
     const acceptCall = (index) => {
@@ -135,7 +172,8 @@ function useCall({socket, connections, createConnection}) {
         sentCalls,
         call,
         acceptCall,
-        refuseCall
+        refuseCall,
+        cancel
     };
 }
 

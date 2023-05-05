@@ -39,6 +39,17 @@ class Call {
         Object.values(this.observers).forEach(obs => obs(content));
     }
 
+    cancel(opts={detail:''}) {
+        const { detail } = opts;
+        const data = {callSuccess: false, detail: `chamada cancelada pelo ${this.target}`};
+        if(detail) {
+            data.detail = detail;
+        }
+        this.isCallComplete = true;
+        this._notify({type:'callcomplete', data});
+        this._notify({type:'end'});
+    }
+
     complete() {
         this.isCallComplete = true;
         this._notify({type:'callcomplete', data: {callSuccess: true}});
@@ -55,7 +66,7 @@ class Call {
         }
         if(this.isCallComplete) {
             this.isCallComplete = true;
-            this._notify({type:'callcomplete', data: {callSuccess: false}});
+            this._notify({type:'callcomplete', data: {callSuccess: false, detail: `${this.target} não atendeu`}});
             this._notify({type:'end'});
         }
     }

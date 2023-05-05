@@ -255,6 +255,22 @@ export const ConnectionProvider = ({ children }) => {
             console.log(`conexão com o user "${target}" não encontrado`);
             return;
         }
+        const incomingCall = call.incomingCalls.find(call => call.target === target);
+        const sentCall = call.sentCalls.find(call => call.target === target);
+        if(incomingCall) {
+            incomingCall.cancel();
+            socket.emit('callcanceled', {
+                name: user.name,
+                target: incomingCall.target
+            });
+        }
+        if(sentCall) {
+            sentCall.cancel();
+            socket.emit('callcanceled', {
+                name: user.name,
+                target: sentCall.target
+            });
+        }
         try {
             conn.close();
         } catch (error) {
